@@ -1,0 +1,10 @@
+# Test/benchmark output - never commit captured results
+C:/CombinedTest_Results/
+CombinedTest_Results/
+*_Results/
+*.csv
+*.etl
+*.log
+
+# PassMark raw result exports if copied in accidentally
+PerfRes.txt
