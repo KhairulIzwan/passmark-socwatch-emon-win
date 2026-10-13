@@ -264,23 +264,32 @@ for ($w = 0; $w -lt 50; $w++) {
 Write-Host "  Benchmark started."
 
 # ---------- Step 4: start telemetry NOW, right as the real workload begins - no fixed duration ----------
-# EMON: "-l 0" = loop forever (1-second samples) until stopped.
-# SocWatch: "-t $SocWatchSafetyCapSeconds" is only a safety ceiling.
-# BOTH are stopped via a real Ctrl-C signal the instant PassMark's completion dialog is detected -
-# confirmed graceful for both tools (SocWatch: "Use Ctrl-C to stop collection", verified clean
-# output on a live test; EMON: verified clean 100+ line multi-sample CSV after Ctrl-C, same as
-# pressing Ctrl-C manually in its console). This is NOT a process kill - no driver/crash risk.
+# EMON: "-nb" launches it non-blocking/detached (returns control immediately, confirmed ~2s) while
+# it keeps sampling in the background ("-l 0" = loop forever, 1-second samples) until stopped via
+# the official "emon -stop" command - this matches Intel's own reference automation pattern and is
+# simpler/safer than a Ctrl-C hack (verified: -nb + -stop produces clean multi-sample CSV output).
+# SocWatch: "-t $SocWatchSafetyCapSeconds" is only a safety ceiling; SocWatch has no equivalent
+# detached+stop command for our GUI-driven (non -p-launchable) workload, so it is still stopped via
+# a real Ctrl-C signal the instant PassMark's completion dialog is detected (confirmed graceful:
+# "Use Ctrl-C to stop collection", verified clean output on a live test). Feature set below matches
+# the organization's reference SocWatch/EMON automation profile (14 telemetry channels).
 Write-Host "`n[4/7] Starting EMON + SocWatch telemetry (will run exactly as long as the benchmark does)..." -ForegroundColor Yellow
 
 $emonCsv = Join-Path $resultsDir "emon.csv"
-$emonArgs = '/c call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && emon -C "INST_RETIRED.ANY, CPU_CLK_UNHALTED.REF_TSC, LONGEST_LAT_CACHE.MISS" -t1 -l0 -f "' + $emonCsv + '"'
+$emonArgs = '/c call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && emon -nb -C "INST_RETIRED.ANY, CPU_CLK_UNHALTED.REF_TSC, LONGEST_LAT_CACHE.MISS" -t1 -l0 -f "' + $emonCsv + '"'
 $emonProc = Start-Process -FilePath "cmd.exe" -ArgumentList $emonArgs -WorkingDirectory "C:\Program Files (x86)\IntelSWTools\emon" -PassThru -WindowStyle Minimized
+$emonProc.WaitForExit(15000) | Out-Null   # -nb returns control quickly once the background collector is launched
 
 $socDir = Join-Path $resultsDir "socwatch"
-$socProc = Start-Process -FilePath "C:\Program Files\SocWatch\socwatch.exe" -ArgumentList @("-f","pkg-pwr","-f","cpu-pstate","-f","cpu-cstate","-o",$socDir,"-t",$SocWatchSafetyCapSeconds) -WorkingDirectory "C:\Program Files\SocWatch" -PassThru -WindowStyle Minimized
+$socFeatures = @("cpu-wakeup","sys-memory","cpu-freq","uncore-freq","cpu-ipc","cache","os-cpu-pstate","hw-cpu-pstate","pkg-pwr","cpu-pstate","gfx-pstate","sa-freq","pwr-limits","cpu-cstate")
+$socArgs = @()
+foreach ($feat in $socFeatures) { $socArgs += "-f"; $socArgs += $feat }
+$socArgs += @("-o",$socDir,"-t",$SocWatchSafetyCapSeconds)
+$socProc = Start-Process -FilePath "C:\Program Files\SocWatch\socwatch.exe" -ArgumentList $socArgs -WorkingDirectory "C:\Program Files\SocWatch" -PassThru -WindowStyle Minimized
 
 Start-Sleep -Seconds 2
-Write-Host "  EMON PID=$($emonProc.Id)  SocWatch PID=$($socProc.Id)"
+$emonRunning = Get-Process -Name "emon" -ErrorAction SilentlyContinue
+Write-Host "  EMON PID=$(if($emonRunning){$emonRunning.Id}else{'(not detected)'})  SocWatch PID=$($socProc.Id)"
 Write-Host "  Monitoring CPU usage + active sub-test to auto-detect completion..."
 
 # ---------- Step 5: detect completion via the REAL "benchmark complete" summary dialog ----------
@@ -314,20 +323,21 @@ for ($i = 0; $i -lt $maxIters; $i++) {
 }
 if (-not $reallyDone) { Write-Host "  [WARN] Safety timeout reached without seeing the completion dialog - proceeding anyway, results may be incomplete." -ForegroundColor Red }
 
-# ---------- Step 5b: gracefully stop telemetry the instant completion was detected (Ctrl-C, not a kill) ----------
-Write-Host "`nStopping telemetry (graceful Ctrl-C)..." -ForegroundColor Yellow
-if (-not $emonProc.HasExited) {
-    $ok = Send-GracefulCtrlC $emonProc.Id
-    Write-Host "  EMON Ctrl-C sent: $ok"
-}
+# ---------- Step 5b: gracefully stop telemetry the instant completion was detected ----------
+# EMON: stopped via the official "emon -stop" command (blocks until the collector flushes/exits).
+# SocWatch: stopped via a real Ctrl-C signal (no -p-launchable workload to tie its lifetime to).
+Write-Host "`nStopping telemetry (EMON: official -stop, SocWatch: graceful Ctrl-C)..." -ForegroundColor Yellow
+$emonStopOut = cmd /c 'call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && emon -stop' 2>&1
+Write-Host "  EMON stop: $($emonStopOut -join ' ')"
 if (-not $socProc.HasExited) {
     $ok = Send-GracefulCtrlC $socProc.Id
     Write-Host "  SocWatch Ctrl-C sent: $ok"
 }
 Write-Host "  Waiting for EMON/SocWatch to finish finalizing/writing output..."
-$emonProc.WaitForExit(60000) | Out-Null
 $socProc.WaitForExit(60000) | Out-Null
-Write-Host "  Telemetry stopped. EMON exited=$($emonProc.HasExited)  SocWatch exited=$($socProc.HasExited)" -ForegroundColor Green
+Start-Sleep -Seconds 2
+$emonStillRunning = Get-Process -Name "emon" -ErrorAction SilentlyContinue
+Write-Host "  Telemetry stopped. EMON exited=$(-not [bool]$emonStillRunning)  SocWatch exited=$($socProc.HasExited)" -ForegroundColor Green
 
 # ---------- Step 6: close ALL post-run summary dialogs (never touch Submit) ----------
 Write-Host "`n[5/7] Closing benchmark-complete summary dialog(s) (if present)..." -ForegroundColor Yellow
