@@ -129,15 +129,46 @@ function Wait-ForDialog($targetPid, $titlePattern, $timeoutMs) {
     return [IntPtr]::Zero
 }
 
+# Auto-dismisses PassMark's cold-start "Warning" popup (e.g. "system not ready - checking...")
+# by clicking its OK button, so no manual interaction is ever needed. Only touches dialogs whose
+# title contains "Warning" - never the Run-All-Tests confirm or Submit-Baseline dialogs, which are
+# handled explicitly elsewhere by exact title/control-id match.
+function Close-WarningPopups($targetPid) {
+    $closed = 0
+    $wins = Get-VisibleWindowsForPid $targetPid
+    $warnDlgs = $wins | Where-Object { $_.Title -match "Warning" }
+    foreach ($wd in $warnDlgs) {
+        $wCtrls = Get-ChildControls $wd.H
+        $okB = $wCtrls | Where-Object { $_.Text -eq "OK" } | Select-Object -First 1
+        if ($okB) {
+            [Native.Combined]::PostMessage($okB.H, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null  # BM_CLICK
+            $closed++
+        } else {
+            [Native.Combined]::PostMessage($wd.H, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null  # WM_CLOSE fallback
+            $closed++
+        }
+    }
+    return $closed
+}
+
 # ---------- Step 1: launch PassMark GUI ----------
 $knownTestClasses = @("TestWindow","DirectWriteTest","D2DDemoApp","D3DProxyWindow","D3D Window","Direct3DWindowClass")
 Write-Host "`n[1/7] Launching PassMark GUI..." -ForegroundColor Yellow
 $pm = Get-Process PerformanceTest64 -ErrorAction SilentlyContinue
+$coldLaunch = $false
 if (-not $pm) {
+    $coldLaunch = $true
     Start-Process -FilePath "C:\Program Files\PerformanceTest\PerformanceTest64.exe" -WorkingDirectory "C:\Program Files\PerformanceTest"
-    Write-Host "  Cold launch detected - waiting 10s for first-time initialization/system check..."
-    Start-Sleep -Seconds 10
-    $pm = Get-Process PerformanceTest64 -ErrorAction SilentlyContinue
+    Write-Host "  Cold launch detected - waiting for first-time initialization/system check (up to 60s)..."
+    for ($i = 0; $i -lt 60; $i++) {
+        Start-Sleep -Seconds 1
+        $pm = Get-Process PerformanceTest64 -ErrorAction SilentlyContinue
+        if ($pm) {
+            $dismissed = Close-WarningPopups $pm.Id
+            if ($dismissed -gt 0) { Write-Host "  [DEBUG] Auto-dismissed $dismissed cold-start Warning popup(s)." }
+            break
+        }
+    }
 }
 if (-not $pm) { throw "PassMark did not launch." }
 
@@ -168,11 +199,22 @@ if ($staleClosed -gt 0) { Write-Host "  [DEBUG] Cleaned up $staleClosed stale le
 
 # ---------- Step 2: set Preferences (Test duration / Test iterations) ----------
 Write-Host "`n[2/7] Setting Preferences: duration=$TestDuration, iterations=$TestIterations..." -ForegroundColor Yellow
-[Native.Combined]::SetForegroundWindow($hwnd) | Out-Null
-Start-Sleep -Milliseconds 300
-[Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]40040, [IntPtr]::Zero) | Out-Null  # Edit > Preferences...
-$prefDlg = Wait-ForDialog $pm.Id "^Edit Preferences$" 4000
-if ($prefDlg -eq [IntPtr]::Zero) { throw "Preferences dialog did not appear." }
+# On a cold launch, PassMark's window can exist (and even respond to class/title queries) before
+# it's actually ready to process menu commands (first-run hardware scan, etc). Rather than guess a
+# fixed delay, retry opening the dialog for up to ~45s and only fail if it truly never appears.
+$prefDlg = [IntPtr]::Zero
+$prefAttempts = if ($coldLaunch) { 15 } else { 3 }
+for ($a = 1; $a -le $prefAttempts; $a++) {
+    $dismissed = Close-WarningPopups $pm.Id
+    if ($dismissed -gt 0) { Write-Host "  [DEBUG] Auto-dismissed $dismissed Warning popup(s)."; Start-Sleep -Milliseconds 300 }
+    [Native.Combined]::SetForegroundWindow($hwnd) | Out-Null
+    Start-Sleep -Milliseconds 300
+    [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]40040, [IntPtr]::Zero) | Out-Null  # Edit > Preferences...
+    $prefDlg = Wait-ForDialog $pm.Id "^Edit Preferences$" 3000
+    if ($prefDlg -ne [IntPtr]::Zero) { break }
+    Write-Host "  [DEBUG] Preferences dialog not up yet (attempt $a/$prefAttempts) - app may still be initializing, retrying..."
+}
+if ($prefDlg -eq [IntPtr]::Zero) { throw "Preferences dialog did not appear after $prefAttempts attempts." }
 
 $ctrls = Get-ChildControls $prefDlg
 $durationCombo = ($ctrls | Where-Object { $_.Id -eq 1009 })[0].H
