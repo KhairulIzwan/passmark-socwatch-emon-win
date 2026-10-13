@@ -21,7 +21,9 @@ param(
     [int]$SocWatchSafetyCapSeconds = 900, # hard ceiling only - SocWatch is stopped early via Ctrl-C as soon as the benchmark actually finishes
     [string]$TestDuration  = "Short", # Short | Medium | Long | VeryLong
     [int]$TestIterations   = 3,
-    [switch]$ConfirmBeforeRun          # if set, asks Y/N before starting the benchmark; default is fully automatic
+    [switch]$ConfirmBeforeRun,         # if set, asks Y/N before starting the benchmark; default is fully automatic
+    [ValidateSet("AsIs","Balanced","HighPerformance","UltimatePerformance","PowerSaver")]
+    [string]$PowerPlan = "HighPerformance"  # power plan to use DURING the benchmark; original plan is restored afterward. "AsIs" = don't touch it.
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +31,107 @@ $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $resultsDir = "C:\CombinedTest_Results\$ts"
 New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
 Write-Host "Results will be saved to: $resultsDir" -ForegroundColor Cyan
+
+# ---------- Power plan handling ----------
+# "Balanced" (Windows default) throttles for power savings and can make benchmark runs
+# inconsistent run-to-run. We record the original plan, optionally switch to a steadier one for
+# the duration of the run (user-selectable via -PowerPlan), and always restore the original plan
+# afterward (even if PowerPlan is "AsIs", so a manual power-plan change by a prior run never
+# leaks into this one's "original plan" baseline - we just don't switch away from it).
+$PowerPlanGuids = @{
+    "Balanced"            = "381b4222-f694-41f0-9685-ff5bb260df2e"
+    "HighPerformance"     = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"
+    "PowerSaver"          = "a1841308-3541-4fab-bc81-f71556f20b4a"
+    "UltimatePerformance" = "e9a42b02-d5df-448d-aa00-03f14749eb61"  # hidden scheme; enabled via -duplicatescheme if not already present
+}
+
+function Get-ActivePowerSchemeInfo {
+    $line = (powercfg /getactivescheme) -join "`n"
+    if ($line -match "Power Scheme GUID:\s*([0-9a-fA-F-]+)\s*\(([^)]+)\)") {
+        return [PSCustomObject]@{ Guid = $Matches[1]; Name = $Matches[2] }
+    }
+    return $null
+}
+
+$originalScheme = Get-ActivePowerSchemeInfo
+$appliedPowerPlanName = "AsIs (left unchanged)"
+if ($PowerPlan -ne "AsIs" -and $originalScheme) {
+    try {
+        $targetGuid = $PowerPlanGuids[$PowerPlan]
+        if ($PowerPlan -eq "UltimatePerformance") {
+            $listOut = (powercfg /list) -join "`n"
+            if ($listOut -notmatch [regex]::Escape($targetGuid)) {
+                powercfg -duplicatescheme $targetGuid | Out-Null   # exposes the normally-hidden Ultimate Performance scheme
+            }
+        }
+        powercfg /setactive $targetGuid
+        $appliedPowerPlanName = $PowerPlan
+        Write-Host "Power plan: $($originalScheme.Name) -> $PowerPlan (will restore '$($originalScheme.Name)' when done)" -ForegroundColor Cyan
+    } catch {
+        Write-Host "  [WARN] Could not switch power plan to $PowerPlan - continuing on current plan ($($originalScheme.Name)). Error: $_" -ForegroundColor Red
+        $appliedPowerPlanName = "$($originalScheme.Name) (switch failed, left unchanged)"
+    }
+} elseif ($originalScheme) {
+    Write-Host "Power plan: left as-is ($($originalScheme.Name))" -ForegroundColor Cyan
+}
+
+# ---------- Capture HW/SW test-bed configuration alongside the results ----------
+function Write-SystemInfo($path, $powerPlanNote) {
+    $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+    $ram = Get-CimInstance Win32_PhysicalMemory
+    $bios = Get-CimInstance Win32_BIOS
+    $os = Get-CimInstance Win32_OperatingSystem
+    $gpus = Get-CimInstance Win32_VideoController
+
+    $lines = @()
+    $lines += "=== Test-bed configuration ($(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) ==="
+    $lines += ""
+    $lines += "-- CPU --"
+    $lines += "Model: $($cpu.Name)"
+    $lines += "Cores/Threads: $($cpu.NumberOfCores) cores / $($cpu.NumberOfLogicalProcessors) threads"
+    $lines += "Max clock speed (reported): $($cpu.MaxClockSpeed) MHz"
+    $lines += ""
+    $lines += "-- Memory --"
+    $totalGB = [math]::Round(($ram | Measure-Object Capacity -Sum).Sum / 1GB, 1)
+    $lines += "Total installed: $totalGB GB across $($ram.Count) module(s)"
+    foreach ($m in $ram) {
+        $lines += "  - $([math]::Round($m.Capacity/1GB,1)) GB @ $($m.Speed) MT/s, $($m.Manufacturer) $($m.PartNumber)".Trim()
+    }
+    $lines += ""
+    $lines += "-- BIOS --"
+    $lines += "Version: $($bios.SMBIOSBIOSVersion)  |  Manufacturer: $($bios.Manufacturer)  |  Release date: $($bios.ReleaseDate)"
+    $lines += ""
+    $lines += "-- Operating System --"
+    $lines += "$($os.Caption) (Build $($os.BuildNumber), $($os.OSArchitecture))"
+    $lines += ""
+    $lines += "-- GPU(s) --"
+    foreach ($g in $gpus) { $lines += "$($g.Name) - driver $($g.DriverVersion) ($($g.DriverDate))" }
+    $lines += ""
+    $lines += "-- Power plan --"
+    $lines += $powerPlanNote
+    $lines | Out-File -FilePath $path -Encoding utf8
+}
+Write-SystemInfo (Join-Path $resultsDir "system_info.txt") "Original plan: $($originalScheme.Name) | Applied for this run: $appliedPowerPlanName"
+
+# Safety net: restore the original power plan even if the script aborts with an error partway
+# through (the normal end-of-script restore further below only runs on a clean finish).
+$script:powerPlanRestored = $false
+function Restore-OriginalPowerPlanOnce {
+    if ($script:powerPlanRestored) { return }
+    if ($PowerPlan -ne "AsIs" -and $originalScheme -and $appliedPowerPlanName -eq $PowerPlan) {
+        try {
+            powercfg /setactive $originalScheme.Guid
+            Write-Host "Power plan restored to: $($originalScheme.Name)" -ForegroundColor Cyan
+        } catch {
+            Write-Host "  [WARN] Could not restore original power plan ($($originalScheme.Name)). Please set it back manually. Error: $_" -ForegroundColor Red
+        }
+    }
+    $script:powerPlanRestored = $true
+}
+trap {
+    Write-Host "`n[ERROR] Script aborting due to an unhandled error - restoring power plan before exit." -ForegroundColor Red
+    Restore-OriginalPowerPlanOnce
+}
 
 # ---------- Native API helpers for PassMark automation ----------
 Add-Type -Namespace Native -Name Combined -MemberDefinition @'
@@ -445,6 +548,12 @@ if (Test-Path $perfRes) {
     Write-Host "  PassMark results saved (file timestamp: $finalTime)."
 } else {
     Write-Host "  WARNING: PerfRes.txt not found at expected path." -ForegroundColor Red
+}
+
+# ---------- Restore original power plan ----------
+Restore-OriginalPowerPlanOnce
+if ($PowerPlan -ne "AsIs" -and $originalScheme -and $appliedPowerPlanName -eq $PowerPlan) {
+    Add-Content -Path (Join-Path $resultsDir "system_info.txt") -Value "Restored after run: $($originalScheme.Name)"
 }
 
 Write-Host "`n=== DONE ===" -ForegroundColor Cyan

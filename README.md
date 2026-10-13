@@ -39,9 +39,23 @@ Common parameters:
   SocWatch only - **not** the expected run length. In normal operation SocWatch is stopped
   early via Ctrl-C the moment the benchmark finishes; this cap only protects against a
   stuck/undetected completion.
+- `-PowerPlan` (combined script only, default `HighPerformance`): power plan to use **during**
+  the benchmark - `AsIs | Balanced | HighPerformance | UltimatePerformance | PowerSaver`. The
+  original plan is always restored afterward (even on a mid-run error, via a `trap` safety
+  net). `Balanced` (Windows default) throttles for power savings and can make benchmark runs
+  inconsistent run-to-run; `HighPerformance`/`UltimatePerformance` remove that throttling.
+  `UltimatePerformance` is auto-unhidden via `powercfg -duplicatescheme` if not already present.
 
 Results are written to a timestamped folder, e.g. `C:\CombinedTest_Results\<yyyyMMdd_HHmmss>\`,
-containing `PassMark_PerfRes.txt`, `emon.csv`, and `socwatch*.csv`/`.etl` files.
+containing `PassMark_PerfRes.txt`, `emon.csv`, `socwatch*.csv`/`.etl` files, and
+`system_info.txt` (combined script only - see below).
+
+### Test-bed configuration snapshot (`system_info.txt`, combined script only)
+Every run of `run_combined_test.ps1` captures a `system_info.txt` into the results folder with
+the CPU model/cores/threads, installed RAM (size/speed/manufacturer per module), BIOS
+version/date, OS build, GPU model + driver version, and which power plan was active
+originally vs. during the run - the baseline hardware/software configuration info needed to
+make sense of (and reproduce) a given benchmark's numbers.
 
 ## How it works
 
