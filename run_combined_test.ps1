@@ -1,6 +1,8 @@
 <#
- Combined PassMark + SocWatch + EMON telemetry capture - FULLY AUTOMATED
- ------------------------------------------------------------------------
+.SYNOPSIS
+ Combined PassMark + SocWatch + EMON telemetry capture - FULLY AUTOMATED.
+
+.DESCRIPTION
  1. Launches PassMark GUI (if not already running)
  2. Sets Preferences: Test duration + Test iterations (via Edit > Preferences automation)
  3. Triggers "Run All Tests" (same as manual "Run Benchmark" button) and confirms the Y/N prompt
@@ -12,9 +14,42 @@
  5. Detects completion via PassMark's own "benchmark complete" summary dialog (not CPU plateau)
  6. Closes the post-run "Submit Baseline" summary dialog (never touches the submit button)
  7. Auto-triggers PassMark's "Save results as text" + auto-clicks Export, with retry + freshness verification
- 8. Parses PerfRes.txt and copies everything into one timestamped results folder
+ 8. Parses PerfRes.txt and copies everything (plus a system_info.txt HW/SW config snapshot) into
+    one timestamped results folder under .\Results\
 
  Run this from an elevated PowerShell in your own interactive session (not SYSTEM/session 0).
+
+.PARAMETER TestDuration
+ PassMark's "Test Duration" preference: Short | Medium | Long | VeryLong.
+
+.PARAMETER TestIterations
+ Number of repeats per sub-test (PassMark's "Test Iterations" preference).
+
+.PARAMETER ConfirmBeforeRun
+ If set, asks Y/N before starting the benchmark. Default is fully automatic (no prompts).
+
+.PARAMETER SocWatchSafetyCapSeconds
+ Hard safety ceiling for SocWatch only - NOT the expected run length. SocWatch is normally
+ stopped early via Ctrl-C the instant the benchmark finishes; this cap only protects against a
+ stuck/undetected completion. Default 900 (15 min).
+
+.PARAMETER PowerPlan
+ Power plan to use DURING the benchmark: AsIs | Balanced | HighPerformance |
+ UltimatePerformance | PowerSaver. Default HighPerformance. "Balanced" (Windows default)
+ throttles for power savings and can make benchmark runs inconsistent run-to-run. The
+ original plan is always restored afterward, even on a mid-run error. Run with -Help to see
+ the exact power plans currently available on this machine.
+
+.PARAMETER Help
+ Show this usage information (including the power plans available on this machine) and exit
+ without launching anything.
+
+.EXAMPLE
+ .\run_combined_test.ps1 -TestDuration Short -TestIterations 1
+.EXAMPLE
+ .\run_combined_test.ps1 -TestDuration Long -TestIterations 3 -PowerPlan UltimatePerformance
+.EXAMPLE
+ .\run_combined_test.ps1 -Help
 #>
 
 param(
@@ -23,8 +58,41 @@ param(
     [int]$TestIterations   = 3,
     [switch]$ConfirmBeforeRun,         # if set, asks Y/N before starting the benchmark; default is fully automatic
     [ValidateSet("AsIs","Balanced","HighPerformance","UltimatePerformance","PowerSaver")]
-    [string]$PowerPlan = "HighPerformance"  # power plan to use DURING the benchmark; original plan is restored afterward. "AsIs" = don't touch it.
+    [string]$PowerPlan = "HighPerformance",  # power plan to use DURING the benchmark; original plan is restored afterward. "AsIs" = don't touch it.
+    [switch]$Help                      # show usage (incl. available power plans on this machine) and exit
 )
+
+if ($Help) {
+    Write-Host @"
+
+Combined PassMark + SocWatch + EMON telemetry capture - FULLY AUTOMATED
+
+USAGE:
+  .\run_combined_test.ps1 [-TestDuration <Short|Medium|Long|VeryLong>] [-TestIterations <n>]
+                           [-PowerPlan <AsIs|Balanced|HighPerformance|UltimatePerformance|PowerSaver>]
+                           [-SocWatchSafetyCapSeconds <n>] [-ConfirmBeforeRun] [-Help]
+
+PARAMETERS:
+  -TestDuration             Short | Medium | Long | VeryLong   (default: Short)
+  -TestIterations           Number of repeats per sub-test     (default: 3)
+  -PowerPlan                Power plan used during the run - original is always restored after
+                             (default: HighPerformance)
+  -SocWatchSafetyCapSeconds Safety ceiling only, not the expected run length (default: 900)
+  -ConfirmBeforeRun         Ask Y/N before starting the benchmark (default: fully automatic)
+  -Help                     Show this help and exit
+
+EXAMPLES:
+  .\run_combined_test.ps1 -TestDuration Short -TestIterations 1
+  .\run_combined_test.ps1 -TestDuration Long -TestIterations 3 -PowerPlan UltimatePerformance
+  .\run_combined_test.ps1 -ConfirmBeforeRun
+
+Full details: Get-Help .\run_combined_test.ps1 -Full   (or see README.md)
+"@ -ForegroundColor Cyan
+
+    Write-Host "POWER PLANS AVAILABLE ON THIS MACHINE:" -ForegroundColor Cyan
+    powercfg /list
+    exit 0
+}
 
 $ErrorActionPreference = "Stop"
 $ts = Get-Date -Format "yyyyMMdd_HHmmss"

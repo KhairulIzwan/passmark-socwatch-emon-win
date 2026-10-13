@@ -1,20 +1,63 @@
 <#
- PassMark-only automation (telemetry set aside for now)
- --------------------------------------------------------
+.SYNOPSIS
+ PassMark-only automation (telemetry set aside for now).
+
+.DESCRIPTION
  1. Launches PassMark GUI (if not already running)
  2. Sets Preferences: Test duration + Test iterations
  3. Triggers "Run All Tests" (same as clicking "Run Benchmark")
  4. Detects completion via PassMark's own "benchmark complete" summary dialog (not CPU plateau)
  5. Closes the post-run "Submit Baseline" summary dialog (never touches Submit)
  6. Auto-triggers "Save results as text" + auto-clicks Export, with retry + freshness verification
- 7. Copies PerfRes.txt into a timestamped results folder
+ 7. Copies PerfRes.txt into a timestamped results folder under .\Results\
+
+.PARAMETER TestDuration
+ PassMark's "Test Duration" preference: Short | Medium | Long | VeryLong.
+
+.PARAMETER TestIterations
+ Number of repeats per sub-test (PassMark's "Test Iterations" preference).
+
+.PARAMETER ConfirmBeforeRun
+ If set, asks Y/N before starting the benchmark. Default is fully automatic (no prompts).
+
+.PARAMETER Help
+ Show this usage information and exit without launching anything.
+
+.EXAMPLE
+ .\run_passmark_auto.ps1 -TestDuration Short -TestIterations 1
+.EXAMPLE
+ .\run_passmark_auto.ps1 -Help
 #>
 
 param(
     [string]$TestDuration  = "Short", # Short | Medium | Long | VeryLong
     [int]$TestIterations   = 3,
-    [switch]$ConfirmBeforeRun          # if set, asks Y/N before starting the benchmark; default is fully automatic
+    [switch]$ConfirmBeforeRun,         # if set, asks Y/N before starting the benchmark; default is fully automatic
+    [switch]$Help                      # show usage and exit
 )
+
+if ($Help) {
+    Write-Host @"
+
+PassMark-only automation (telemetry set aside for now)
+
+USAGE:
+  .\run_passmark_auto.ps1 [-TestDuration <Short|Medium|Long|VeryLong>] [-TestIterations <n>]
+                          [-ConfirmBeforeRun] [-Help]
+
+PARAMETERS:
+  -TestDuration      Short | Medium | Long | VeryLong   (default: Short)
+  -TestIterations    Number of repeats per sub-test     (default: 3)
+  -ConfirmBeforeRun  Ask Y/N before starting the benchmark (default: fully automatic)
+  -Help              Show this help and exit
+
+EXAMPLES:
+  .\run_passmark_auto.ps1 -TestDuration Short -TestIterations 1
+
+Full details: Get-Help .\run_passmark_auto.ps1 -Full   (or see README.md)
+"@ -ForegroundColor Cyan
+    exit 0
+}
 
 $ErrorActionPreference = "Stop"
 $ts = Get-Date -Format "yyyyMMdd_HHmmss"
