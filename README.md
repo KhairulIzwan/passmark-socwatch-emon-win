@@ -46,9 +46,11 @@ Common parameters:
   inconsistent run-to-run; `HighPerformance`/`UltimatePerformance` remove that throttling.
   `UltimatePerformance` is auto-unhidden via `powercfg -duplicatescheme` if not already present.
 
-Results are written to a timestamped folder, e.g. `C:\CombinedTest_Results\<yyyyMMdd_HHmmss>\`,
-containing `PassMark_PerfRes.txt`, `emon.csv`, `socwatch*.csv`/`.etl` files, and
-`system_info.txt` (combined script only - see below).
+Results are written to a timestamped folder inside the project itself, e.g.
+`passmark-socwatch-emon-win\Results\<yyyyMMdd_HHmmss>\` (next to the script, via
+`$PSScriptRoot`), containing `PassMark_PerfRes.txt`, `emon.csv`, `socwatch*.csv`/`.etl` files,
+and `system_info.txt` (combined script only - see below). `Results/` is git-ignored, so run
+output is never committed/pushed - only the scripts/docs are version-controlled.
 
 ### Test-bed configuration snapshot (`system_info.txt`, combined script only)
 Every run of `run_combined_test.ps1` captures a `system_info.txt` into the results folder with

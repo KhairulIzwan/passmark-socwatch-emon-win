@@ -18,7 +18,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ts = Get-Date -Format "yyyyMMdd_HHmmss"
-$resultsDir = "C:\PassMarkOnly_Results\$ts"
+$resultsDir = Join-Path $PSScriptRoot "Results\$ts"
 New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
 Write-Host "Results will be saved to: $resultsDir" -ForegroundColor Cyan
 

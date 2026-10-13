@@ -1,6 +1,5 @@
 # Test/benchmark output - never commit captured results
-C:/CombinedTest_Results/
-CombinedTest_Results/
+Results/
 *_Results/
 *.csv
 *.etl
