@@ -31,7 +31,7 @@
 .PARAMETER SocWatchSafetyCapSeconds
  Hard safety ceiling for SocWatch only - NOT the expected run length. SocWatch is normally
  stopped early via Ctrl-C the instant the benchmark finishes; this cap only protects against a
- stuck/undetected completion. Default 900 (15 min).
+ stuck/undetected completion. Default 1800 (30 min).
 
 .PARAMETER PowerPlan
  Power plan to use DURING the benchmark: AsIs | Balanced | HighPerformance |
@@ -53,7 +53,7 @@
 #>
 
 param(
-    [int]$SocWatchSafetyCapSeconds = 900, # hard ceiling only - SocWatch is stopped early via Ctrl-C as soon as the benchmark actually finishes
+    [int]$SocWatchSafetyCapSeconds = 1800, # hard ceiling only - SocWatch is stopped early via Ctrl-C as soon as the benchmark actually finishes
     [string]$TestDuration  = "Short", # Short | Medium | Long | VeryLong
     [int]$TestIterations   = 3,
     [switch]$ConfirmBeforeRun,         # if set, asks Y/N before starting the benchmark; default is fully automatic
@@ -77,7 +77,7 @@ PARAMETERS:
   -TestIterations           Number of repeats per sub-test     (default: 3)
   -PowerPlan                Power plan used during the run - original is always restored after
                              (default: HighPerformance)
-  -SocWatchSafetyCapSeconds Safety ceiling only, not the expected run length (default: 900)
+  -SocWatchSafetyCapSeconds Safety ceiling only, not the expected run length (default: 1800)
   -ConfirmBeforeRun         Ask Y/N before starting the benchmark (default: fully automatic)
   -Help                     Show this help and exit
 

@@ -7,3 +7,7 @@ Results/
 
 # PassMark raw result exports if copied in accidentally
 PerfRes.txt
+
+# Python cache
+__pycache__/
+*.pyc
