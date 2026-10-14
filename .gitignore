@@ -1,0 +1,13 @@
+# Test/benchmark output - never commit captured results
+Results/
+*_Results/
+*.csv
+*.etl
+*.log
+
+# PassMark raw result exports if copied in accidentally
+PerfRes.txt
+
+# Python cache
+__pycache__/
+*.pyc
