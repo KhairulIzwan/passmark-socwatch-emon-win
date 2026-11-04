@@ -5,6 +5,12 @@ Results/
 *.etl
 *.log
 
+# Exception: raw EMON/SoCWatch CSV data committed under reports/ as case-study
+# backing data for already-archived runs (.etl ETW traces stay ignored
+# everywhere - they're multi-GB intermediate traces, not needed once the CSVs
+# exist).
+!reports/**/*.csv
+
 # PassMark raw result exports if copied in accidentally
 PerfRes.txt
 
