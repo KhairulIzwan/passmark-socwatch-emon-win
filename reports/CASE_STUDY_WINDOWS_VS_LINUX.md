@@ -53,6 +53,12 @@ three iterations match Ubuntu's count, but not the retained Windows pair's
 one iteration. Neither matching counts nor dividing capture time by the
 iteration count establishes cross-OS workload equivalence.
 
+The Ubuntu comparison is limited to the `performance` profile with two CPU
+governors: `powersave` and `performance`. The `power-saver` profile run
+(`20261104_073659`) is outside this stage's scope, not an invalid result;
+its scores and telemetry remain unchanged in the archive. Windows PowerSaver
+remains part of the separate Windows comparison.
+
 ## Evidence and traceability
 
 | Source | Evidence used here | Interpretation boundary |
@@ -84,7 +90,6 @@ per-run score artifacts before reuse.
 | Windows `PowerSaver` | 20261103_233441 |
 | Linux `performance`, `powersave` governor | 20261104_073216, 20261104_080450, 20261104_081815 |
 | Linux `performance`, `performance` governor | 20261104_075827, 20261104_081132, 20261104_082458 |
-| Linux `power-saver` | 20261104_073659 |
 
 Raw data permits further investigation, but its presence
 does not itself establish aligned workload phases or metric equivalence.
@@ -128,6 +133,43 @@ from mW to W, and displayed values are rounded after calculation.
 
 ### Score observations
 
+The tables below use the per-run Windows text exports for UltimatePerformance
+(`20261103_231839`) and PowerSaver (`20261103_233441`). Change is
+`100 * (PowerSaver / UltimatePerformance - 1)`, calculated before rounding.
+It is a change in the reported value, not always a performance improvement:
+lower memory latency is better, and available RAM is a capacity observation.
+The comparison focuses on CPU and memory; graphics/disk results remain in
+the archived exports. Exported percentile annotations are not used as deltas.
+
+#### CPU scores
+
+| Test / unit | UltimatePerformance | PowerSaver | Change |
+|---|---|---|---|
+| CPU Mark (composite) | 34355.6 | 33906.2 | -1.3% |
+| Integer Math (MOps/s) | 85488.8 | 75935.6 | -11.2% |
+| Floating Point Math (MOps/s) | 112807.7 | 95000.0 | -15.8% |
+| Prime Numbers (million primes/s) | 366.5 | 309.1 | -15.7% |
+| Extended Instructions SSE (million matrices/s) | 31789.0 | 30723.6 | -3.4% |
+| Compression (KBytes/s) | 316608.0 | 357559.2 | +12.9% |
+| Encryption (MBytes/s) | 25348.6 | 25758.4 | +1.6% |
+| Physics (frames/s) | 2792.8 | 2976.8 | +6.6% |
+| Sorting (thousand strings/s) | 36706.3 | 44043.3 | +20.0% |
+| CPU Single Threaded (MOps/s) | 4475.0 | 3639.7 | -18.7% |
+| Cross-platform Mark (composite) | 71695.4 | 70709.0 | -1.4% |
+
+#### Memory results
+
+| Test / unit | UltimatePerformance | PowerSaver | Change |
+|---|---|---|---|
+| Memory Mark (composite) | 3663.6 | 2966.3 | -19.0% |
+| Database Operations (KOps/s) | 6884.7 | 1193.3 | -82.7% |
+| Memory Read Cached (MBytes/s) | 35860.4 | 29294.6 | -18.3% |
+| Memory Read Uncached (MBytes/s) | 19848.9 | 18578.6 | -6.4% |
+| Memory Write (MBytes/s) | 16200.4 | 15334.4 | -5.3% |
+| Available RAM (MB; capacity) | 53700.5 | 53638.8 | -0.1% |
+| Memory Latency (ns; lower is better) | 41.3 | 44.1 | +6.8% |
+| Memory Threaded (MBytes/s) | 89699.4 | 88434.3 | -1.4% |
+
 - Against UltimatePerformance, PowerSaver records ~1.3% lower CPU Mark and
   ~19.0% lower Memory Mark. These are observations from one capture per plan.
 - The composite CPU Mark hides different sub-test responses. Integer Math
@@ -135,6 +177,9 @@ from mW to W, and displayed values are rounded after calculation.
   from 4475.0 to 3639.7 MOps/s (~18.7%). Compression rises from 316608.0 to
   357559.2 KBytes/s (~12.9%). Repeat testing is needed before attributing
   these differences to the selected plan.
+- Database Operations records the largest decline among the memory results
+  shown, while memory latency increases. These identify results to investigate,
+  not a demonstrated cause or a reconstruction of Memory Mark's weighting.
 
 ### Supporting telemetry
 
@@ -148,42 +193,100 @@ or a causal explanation for the score changes.
 
 Reference: `performance` profile with the `powersave` governor. Performance
 rows are equal-weight means of three independent captures, not pooled
-telemetry samples. The power-saver row is one capture. Scores use the
-console-derived YAMLs; telemetry uses the analysis CSV values, averaged
-before rounding. Package power is converted from mW to W.
+telemetry samples. Both groups use the same power profile; only the selected
+governor differs. Scores use the console-derived YAMLs; telemetry uses the
+analysis CSV values, averaged before rounding. Package power is converted
+from mW to W.
 
 | Configuration | Runs | CPU Mark | Memory Mark | Avg pkg power | Avg active freq | IPC |
 |---|---|---|---|---|---|---|
 | `performance` profile, `powersave` governor | 3 | 30732 | 3772 | 21.6 W | 2947 MHz | 1.63 |
 | `performance` profile, `performance` governor | 3 | 29891 | 3763 | 21.6 W | 2932 MHz | 1.58 |
-| `power-saver` profile, `powersave` governor | 1 | 14610 | 1512 | 5.6 W | 1234 MHz | 0.70 |
 
 ### Score observations
 
-- Against the reference, the power-saver capture records ~52% lower CPU Mark
-  and ~60% lower Memory Mark. This configuration has only one capture.
+The following tables are calculated directly from the console-derived YAMLs
+for the two run groups listed above. Both use the `performance` profile;
+the column headers identify each CPU governor. Change is
+`100 * (performance-governor mean / powersave-governor mean - 1)`, using
+unrounded means. Displayed scores and changes are rounded to one decimal place.
+
+Field names are retained because these YAMLs do not declare units; no
+cross-OS field equivalence or unit conversion is assumed. The tables cover
+fields present in every included score export. Missing fields are unavailable,
+not zero; for example, the supplied `20261104_082458` export does not record
+memory latency. Per-run values remain available in the linked SKU archive.
+
+#### CPU scores
+
+| Exported field | performance profile / powersave governor (reference mean) | performance profile / performance governor (mean) | Change vs reference |
+|---|---|---|---|
+| `SUMM_CPU` | 30731.7 | 29891.3 | -2.7% |
+| `CPU_INTEGER_MATH` | 90520.7 | 90404.7 | -0.1% |
+| `CPU_FLOATINGPOINT_MATH` | 103624.0 | 103981.3 | +0.3% |
+| `CPU_PRIME` | 195.7 | 173.3 | -11.4% |
+| `CPU_SORTING` | 38567.0 | 37075.0 | -3.9% |
+| `CPU_ENCRYPTION` | 24675.0 | 23865.7 | -3.3% |
+| `CPU_COMPRESSION` | 274128.7 | 267527.7 | -2.4% |
+| `CPU_SINGLETHREAD` | 4412.3 | 4393.3 | -0.4% |
+| `CPU_PHYSICS` | 3203.0 | 2700.7 | -15.7% |
+| `CPU_MATRIX_MULT_SSE` | 17365.0 | 17117.3 | -1.4% |
+
+#### Memory results
+
+| Exported field | performance profile / powersave governor (reference mean) | performance profile / performance governor (mean) | Change vs reference |
+|---|---|---|---|
+| `SUMM_ME` | 3772.0 | 3762.7 | -0.2% |
+| `ME_ALLOC_S` | 9434.0 | 7363.0 | -22.0% |
+| `ME_READ_S` | 35379.3 | 35604.7 | +0.6% |
+| `ME_READ_L` | 23505.0 | 23570.0 | +0.3% |
+| `ME_WRITE` | 16342.3 | 16367.3 | +0.2% |
+| `ME_LARGE` | 57677.0 | 57657.3 | -0.0% |
+
+The displayed -0.0% for `ME_LARGE` is a small negative change rounded to one
+decimal place, not a missing value.
+
 - With the performance profile unchanged, the performance-governor group
   records ~2.7% lower CPU Mark and similar Memory Mark. The cause is not
   established; the governor's name does not predict the benchmark outcome.
 - Repeated CPU Marks within each performance configuration agree within
-  ~0.4%. This supports describing those groups, not assuming equivalent
-  repeatability for the single power-saver capture.
+  ~0.4%. This describes the observed repeatability of these groups, not a
+  guarantee for other configurations or workloads.
+- The performance-governor group's near-flat Integer Math and Floating Point
+  Math accompany lower Physics, Prime Numbers and `ME_ALLOC_S` results.
+  A composite score alone would hide this mixed response; the table does
+  not establish why those fields changed.
 
 ### Supporting telemetry
 
-The power-saver capture records ~74% lower average package power and an
-active frequency of about 1234 MHz, against the reference's 2947 MHz.
-Package C0 residency remains near 99% across these configurations. The score,
-power and frequency changes accompany each other in these captures; they
-do not establish proportional scaling or isolate a power-management cause.
+Both groups round to 21.6 W average package power, with average active
+frequencies of 2947 MHz for the powersave governor and 2932 MHz for the
+performance governor. Package C0 residency remains near 99%. These are
+whole-capture observations, not proof of identical power behavior during
+each sub-test or a causal explanation for the score differences.
 IPC is retained as workload context within Ubuntu, not an OS ranking metric.
 
 ## Next investigation
 
-First repeat the within-OS configurations and inspect PassMark sub-test
-responses, suite coverage and score aggregation. Then align workload-phase
-markers with SoC Watch and EMON time series to determine which measurements
-belong to each sub-test. Collection duration alone is not a phase marker.
+The available CPU and memory score comparisons are presented above; no new
+runs or iteration timestamps were required to calculate them. Next inspect
+per-run variation and existing EMON/SoC Watch traces around the results that
+stand out, without assigning telemetry segments to named sub-tests unless
+timing evidence supports that assignment. Missing export fields do not prove
+that a test was not executed. Matching names do not prove cross-OS equivalence.
+
+### Collect additional evidence only where needed
+
+The inspected score exports do not contain per-iteration scores or sub-test
+start/end timestamps. A telemetry trace alone does not establish those
+boundaries, and collection duration is not a phase marker. Check the existing
+artifacts for usable alignment evidence before requesting new collection.
+
+If phase markers are absent, new timestamped iteration/sub-test markers
+aligned with SoC Watch and EMON would be needed for sub-test-specific telemetry
+attribution. Independent repeat runs address a different gap: repeatability
+of the score differences. Neither is a prerequisite for describing the
+sub-test scores already archived.
 
 Only after that should OS, power-policy, scheduler or compiler mechanisms be
 investigated as possible explanations. The current stage neither attributes
@@ -201,9 +304,10 @@ the differences to those mechanisms nor compares the two OSes head to head.
   pair comparison. Thermal and phase weighting can change with run length,
   even for rate-based scores. Normalizing total capture duration does not
   provide measured per-iteration timings or remove these differences.
-- **Windows has n=1 per retained plan; Linux has n=3 per performance configuration and
-  n=1 for power-saver.** Linux's repeated CPU Marks agree within ~0.4%; that
-  does not establish repeatability for either OS's single-run configurations.
+- **Windows has n=1 per retained plan; Ubuntu has n=3 per included governor
+  configuration.** Ubuntu's power-saver run is outside this stage's scope.
+  Its repeated performance-profile CPU Marks agree within ~0.4%; that does
+  not establish repeatability for the single-run Windows configurations.
 - **IPC comparability is unverified** (see above): EMON event definitions,
   aggregation and collection windows have not been aligned.
 - Conclusions here are **directional observations for further investigation**,
@@ -211,8 +315,10 @@ the differences to those mechanisms nor compares the two OSes head to head.
 
 ## Updating this case study
 
-Regenerate analysis from each repo's `Results/`, refresh its SKU archive and
-summary, then update the tables above by hand; this file is not auto-generated.
+Use the existing SKU archives and per-run score exports to extend the
+within-OS analysis, then update the tables above by hand; this file is not
+auto-generated. When new runs are available, regenerate their analysis from
+`Results/` and refresh the relevant SKU archive and summary.
 Filter out Windows run `20261103_213137` when deriving this comparison from
 the historical CSVs for the primary Windows pair comparison. To compare all
 Windows plans at matching iteration counts, rerun HighPerformance with one
