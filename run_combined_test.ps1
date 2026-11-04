@@ -676,6 +676,23 @@ if ($finalHit) {
     Write-Host "  WARNING: PerfRes.txt not found at expected path." -ForegroundColor Red
 }
 
+# ---------- Step 8b: drop the raw SocWatch ETL traces once the human-readable CSVs exist ----------
+# The .etl files (os/hw/extra/info Session) are SocWatch's internal ETW trace logs - they can run
+# into multiple GB and are not human-readable or needed for analysis; analyze_run.py only reads
+# socwatch.csv / socwatch_WakeupAnalysis.csv. Keep the ETLs only if the CSVs are missing, so a
+# failed/incomplete collection can still be diagnosed from the raw trace.
+$socCsvOk = (Test-Path (Join-Path $resultsDir "socwatch.csv")) -and (Test-Path (Join-Path $resultsDir "socwatch_WakeupAnalysis.csv"))
+$socEtlFiles = Get-ChildItem (Join-Path $resultsDir "socwatch_*Session.etl") -ErrorAction SilentlyContinue
+if ($socEtlFiles) {
+    if ($socCsvOk) {
+        $freedBytes = ($socEtlFiles | Measure-Object Length -Sum).Sum
+        $socEtlFiles | Remove-Item -Force
+        Write-Host ("  Removed {0} raw SocWatch .etl trace file(s) ({1:N1} GB freed) - CSV summaries are kept." -f $socEtlFiles.Count, ($freedBytes / 1GB)) -ForegroundColor Cyan
+    } else {
+        Write-Host "  WARNING: socwatch.csv/socwatch_WakeupAnalysis.csv missing - keeping raw .etl files for diagnosis." -ForegroundColor Red
+    }
+}
+
 # ---------- Restore original power plan ----------
 Restore-OriginalPowerPlanOnce
 if ($PowerPlan -ne "AsIs" -and $originalScheme -and $appliedPowerPlanName -eq $PowerPlan) {

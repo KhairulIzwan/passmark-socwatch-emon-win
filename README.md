@@ -48,9 +48,13 @@ Common parameters:
 
 Results are written to a timestamped folder inside the project itself, e.g.
 `passmark-socwatch-emon-win\Results\<yyyyMMdd_HHmmss>\` (next to the script, via
-`$PSScriptRoot`), containing `PassMark_PerfRes.txt`, `emon.csv`, `socwatch*.csv`/`.etl` files,
-and `system_info.txt` (combined script only - see below). `Results/` is git-ignored, so run
-output is never committed/pushed - only the scripts/reports are version-controlled.
+`$PSScriptRoot`), containing `PassMark_PerfRes.txt`, `emon.csv`, `socwatch.csv`,
+`socwatch_WakeupAnalysis.csv`, and `system_info.txt` (combined script only - see below).
+The raw SocWatch `.etl` ETW trace files (can be multiple GB) are automatically deleted once
+the CSV summaries are confirmed present - they're not human-readable and aren't used by
+`analyze_run.py` (they're kept only if the CSVs failed to generate, for diagnosis).
+`Results/` is git-ignored, so run output is never committed/pushed - only the scripts/reports
+are version-controlled.
 
 ### Test-bed configuration snapshot (`system_info.txt`, combined script only)
 Every run of `run_combined_test.ps1` captures a `system_info.txt` into the results folder with
