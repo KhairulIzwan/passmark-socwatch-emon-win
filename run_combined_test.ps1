@@ -127,12 +127,33 @@ if ($PowerPlan -ne "AsIs" -and $originalScheme) {
     try {
         $targetGuid = $PowerPlanGuids[$PowerPlan]
         if ($PowerPlan -eq "UltimatePerformance") {
+            # The hidden source GUID (e9a42b02-...) can NEVER be set active directly - Windows
+            # rejects it ("Attempted to write to unsupported setting"). -duplicatescheme creates
+            # a NEW, independent, settable GUID for the visible copy and that's what must be used.
+            # If a visible "Ultimate Performance" copy already exists (from a prior run), reuse its
+            # GUID instead of creating yet another duplicate every time.
             $listOut = (powercfg /list) -join "`n"
-            if ($listOut -notmatch [regex]::Escape($targetGuid)) {
-                powercfg -duplicatescheme $targetGuid | Out-Null   # exposes the normally-hidden Ultimate Performance scheme
+            if ($listOut -match "Power Scheme GUID:\s*([0-9a-fA-F-]+)\s*\(Ultimate Performance\)") {
+                $targetGuid = $Matches[1]
+            } else {
+                $dupOut = (powercfg -duplicatescheme $targetGuid) -join "`n"
+                if ($dupOut -match "Power Scheme GUID:\s*([0-9a-fA-F-]+)") {
+                    $targetGuid = $Matches[1]
+                } else {
+                    throw "powercfg -duplicatescheme did not return a new GUID: $dupOut"
+                }
             }
         }
         powercfg /setactive $targetGuid
+        if ($LASTEXITCODE -ne 0) {
+            throw "powercfg /setactive $targetGuid failed with exit code $LASTEXITCODE"
+        }
+        # Verify the switch actually took effect - powercfg can fail silently (non-zero exit
+        # code but no thrown PS error) when setactive is given a GUID it won't accept.
+        $nowActive = Get-ActivePowerSchemeInfo
+        if (-not $nowActive -or $nowActive.Guid -ne $targetGuid) {
+            throw "powercfg /setactive reported success but active scheme is still '$($nowActive.Name)' ($($nowActive.Guid)), not the requested $PowerPlan ($targetGuid)"
+        }
         $appliedPowerPlanName = $PowerPlan
         Write-Host "Power plan: $($originalScheme.Name) -> $PowerPlan (will restore '$($originalScheme.Name)' when done)" -ForegroundColor Cyan
     } catch {
