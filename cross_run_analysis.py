@@ -23,9 +23,9 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
 sys.path.insert(0, str(Path(__file__).parent))
-from analyze_run import parse_emon, parse_passmark  # noqa: E402
+from analyze_run import parse_emon, parse_passmark, detect_n_cores, detect_base_freq_ghz  # noqa: E402
 
-N_CORES = 16
+N_CORES = 16  # fallback only - real value is auto-detected per run from socwatch.csv
 
 SCORE_COLS_OF_INTEREST = [
     "PassMark Rating (Composite average)",
@@ -95,8 +95,10 @@ def parse_socwatch_summary(socwatch_path: Path) -> dict:
     return out
 
 
-def parse_emon_summary(emon_path: Path) -> dict:
-    df = parse_emon(emon_path)
+def parse_emon_summary(emon_path: Path, socwatch_path: Path = None) -> dict:
+    n_cores = detect_n_cores(socwatch_path) if socwatch_path else N_CORES
+    base_freq_ghz = detect_base_freq_ghz(socwatch_path) if socwatch_path else 2.9
+    df = parse_emon(emon_path, n_cores=n_cores, base_freq_ghz=base_freq_ghz)
     if df.empty:
         return {}
     return {
@@ -150,7 +152,7 @@ def collect_runs(root: Path) -> tuple[pd.DataFrame, dict]:
         row.update(parse_socwatch_summary(sw_path))
 
         if em_path.exists():
-            row.update(parse_emon_summary(em_path))
+            row.update(parse_emon_summary(em_path, sw_path))
 
         run_sys_info = parse_system_info(si_path)
         if run_sys_info:

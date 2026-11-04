@@ -138,13 +138,14 @@ function Get-WindowText2($h) {
 }
 
 # Auto-dismisses PassMark's cold-start "Warning" popup (e.g. "system not ready - checking...")
-# by clicking its OK button, so no manual interaction is ever needed. Only touches dialogs whose
-# title contains "Warning" - never the Run-All-Tests confirm or Submit-Baseline dialogs, which are
-# handled explicitly elsewhere by exact title/control-id match.
+# and mid-run "Error" popups (e.g. "OpenCL device not supported" during Graphics Mark) by clicking
+# their OK button, so no manual interaction is ever needed. Only touches dialogs whose title
+# contains "Warning" or "Error" - never the Run-All-Tests confirm or Submit-Baseline dialogs, which
+# are handled explicitly elsewhere by exact title/control-id match.
 function Close-WarningPopups($targetPid) {
     $closed = 0
     $wins = Get-VisibleWindowsForPid $targetPid
-    $warnDlgs = $wins | Where-Object { $_.Title -match "Warning" }
+    $warnDlgs = $wins | Where-Object { $_.Title -match "Warning|Error" }
     foreach ($wd in $warnDlgs) {
         $wCtrls = Get-ChildControls $wd.H
         $okB = $wCtrls | Where-Object { $_.Text -eq "OK" } | Select-Object -First 1
@@ -291,18 +292,21 @@ Write-Host "  Benchmark started. Monitoring CPU usage + active sub-test to auto-
 # containing a "Submit Baseline to Passmark" button, id=12104) is PassMark's own definitive signal
 # that ALL sub-tests (CPU/2D/3D/Memory/Disk) have truly finished - poll for that instead.
 $prevCpu = -1
-$maxIters = 180        # up to 30 minutes safety cap (poll every 10s)
+$tickSeconds = 1        # fast 1s tick: dismisses stray popups (e.g. OpenCL) almost immediately
+$logEveryTicks = 10     # keep log output at the original ~10s cadence
+$maxTicks = 1800        # 1800 * 1s = up to 30 minutes safety cap (unchanged)
 $reallyDone = $false
-for ($i = 0; $i -lt $maxIters; $i++) {
-    Start-Sleep -Seconds 10
+for ($i = 0; $i -lt $maxTicks; $i++) {
+    Start-Sleep -Seconds $tickSeconds
     $p = Get-Process -Id $pm.Id -ErrorAction SilentlyContinue
     if (-not $p) { Write-Host "  [WARN] PassMark process exited unexpectedly."; break }
-    $cpu = [math]::Round($p.CPU, 1)
-    $delta = if ($prevCpu -lt 0) { $cpu } else { [math]::Round($cpu - $prevCpu, 1) }
+
+    # Auto-dismiss any stray "Warning"-titled popup (e.g. OpenCL init/device errors during
+    # Graphics Mark) every tick, so the run is never stuck waiting on a manual click.
+    $dismissed = Close-WarningPopups $pm.Id
+    if ($dismissed -gt 0) { Write-Host "  [DEBUG] Auto-dismissed $dismissed popup(s) mid-run (t=$([math]::Round(($i+1)*$tickSeconds))s)." -ForegroundColor Yellow }
 
     $wins = Get-VisibleWindowsForPid $pm.Id
-    $activeTest = $wins | Where-Object { $_.Class -in $knownTestClasses -and $_.Title -ne "" } | Select-Object -First 1
-    $activeTestLabel = if ($activeTest) { $activeTest.Title } else { "(CPU/Memory/Disk test - no graphics window / between sub-tests)" }
 
     # Check for the real completion dialog: blank-title #32770 with a child button id=12104
     $blankDlgs = $wins | Where-Object { $_.Class -eq "#32770" -and $_.Title -eq "" }
@@ -311,8 +315,14 @@ for ($i = 0; $i -lt $maxIters; $i++) {
         if ($bdCtrls | Where-Object { $_.Id -eq 12104 }) { $reallyDone = $true; break }
     }
 
-    Write-Host "  [t=$(($i+1)*10)s] CPU=$cpu delta=$delta running: $activeTestLabel$(if($reallyDone){' [COMPLETE DIALOG DETECTED]'})"
-    $prevCpu = $cpu
+    if ((($i + 1) % $logEveryTicks) -eq 0 -or $reallyDone) {
+        $cpu = [math]::Round($p.CPU, 1)
+        $delta = if ($prevCpu -lt 0) { $cpu } else { [math]::Round($cpu - $prevCpu, 1) }
+        $activeTest = $wins | Where-Object { $_.Class -in $knownTestClasses -and $_.Title -ne "" } | Select-Object -First 1
+        $activeTestLabel = if ($activeTest) { $activeTest.Title } else { "(CPU/Memory/Disk test - no graphics window / between sub-tests)" }
+        Write-Host "  [t=$([math]::Round(($i+1)*$tickSeconds))s] CPU=$cpu delta=$delta running: $activeTestLabel$(if($reallyDone){' [COMPLETE DIALOG DETECTED]'})"
+        $prevCpu = $cpu
+    }
     if ($reallyDone) { Write-Host "  Benchmark-complete summary dialog confirmed -> all sub-tests (CPU/2D/3D/Memory/Disk) finished." -ForegroundColor Green; break }
 }
 if (-not $reallyDone) { Write-Host "  [WARN] Safety timeout reached without seeing the completion dialog - proceeding anyway, results may be incomplete." -ForegroundColor Red }

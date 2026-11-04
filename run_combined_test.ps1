@@ -301,13 +301,14 @@ function Wait-ForDialog($targetPid, $titlePattern, $timeoutMs) {
 }
 
 # Auto-dismisses PassMark's cold-start "Warning" popup (e.g. "system not ready - checking...")
-# by clicking its OK button, so no manual interaction is ever needed. Only touches dialogs whose
-# title contains "Warning" - never the Run-All-Tests confirm or Submit-Baseline dialogs, which are
-# handled explicitly elsewhere by exact title/control-id match.
+# and mid-run "Error" popups (e.g. "OpenCL device not supported" during Graphics Mark) by clicking
+# their OK button, so no manual interaction is ever needed. Only touches dialogs whose title
+# contains "Warning" or "Error" - never the Run-All-Tests confirm or Submit-Baseline dialogs, which
+# are handled explicitly elsewhere by exact title/control-id match.
 function Close-WarningPopups($targetPid) {
     $closed = 0
     $wins = Get-VisibleWindowsForPid $targetPid
-    $warnDlgs = $wins | Where-Object { $_.Title -match "Warning" }
+    $warnDlgs = $wins | Where-Object { $_.Title -match "Warning|Error" }
     foreach ($wd in $warnDlgs) {
         $wCtrls = Get-ChildControls $wd.H
         $okB = $wCtrls | Where-Object { $_.Text -eq "OK" } | Select-Object -First 1
@@ -469,18 +470,21 @@ Write-Host "  Monitoring CPU usage + active sub-test to auto-detect completion..
 # containing a "Submit Baseline to Passmark" button, id=12104) is PassMark's own definitive signal
 # that ALL sub-tests (CPU/2D/3D/Memory/Disk) have truly finished - poll for that instead.
 $prevCpu = -1
-$maxIters = [math]::Max([math]::Ceiling($SocWatchSafetyCapSeconds / 10) + 24, 180)
+$tickSeconds = 1        # fast 1s tick: dismisses stray popups (e.g. OpenCL) almost immediately
+$logEveryTicks = 10     # keep log output at the original ~10s cadence
+$maxTicks = [math]::Max([math]::Ceiling($SocWatchSafetyCapSeconds / 10) + 24, 180) * 10  # same total safety-cap duration, now in 1s ticks
 $reallyDone = $false
-for ($i = 0; $i -lt $maxIters; $i++) {
-    Start-Sleep -Seconds 10
+for ($i = 0; $i -lt $maxTicks; $i++) {
+    Start-Sleep -Seconds $tickSeconds
     $p = Get-Process -Id $pm.Id -ErrorAction SilentlyContinue
     if (-not $p) { Write-Host "  PassMark process exited."; break }
-    $cpu = [math]::Round($p.CPU, 1)
-    $delta = if ($prevCpu -lt 0) { $cpu } else { [math]::Round($cpu - $prevCpu, 1) }
+
+    # Auto-dismiss any stray "Warning"-titled popup (e.g. OpenCL init/device errors during
+    # Graphics Mark) every tick, so the run is never stuck waiting on a manual click.
+    $dismissed = Close-WarningPopups $pm.Id
+    if ($dismissed -gt 0) { Write-Host "  [DEBUG] Auto-dismissed $dismissed popup(s) mid-run (t=$([math]::Round(($i+1)*$tickSeconds))s)." -ForegroundColor Yellow }
 
     $wins = Get-VisibleWindowsForPid $pm.Id
-    $activeTest = $wins | Where-Object { $_.Class -in $knownTestClasses -and $_.Title -ne "" } | Select-Object -First 1
-    $activeTestLabel = if ($activeTest) { $activeTest.Title } else { "(CPU/Memory/Disk test - no graphics window / between sub-tests)" }
 
     $blankDlgs = $wins | Where-Object { $_.Class -eq "#32770" -and $_.Title -eq "" }
     foreach ($bd in $blankDlgs) {
@@ -488,8 +492,14 @@ for ($i = 0; $i -lt $maxIters; $i++) {
         if ($bdCtrls | Where-Object { $_.Id -eq 12104 }) { $reallyDone = $true; break }
     }
 
-    Write-Host "  t=$(($i+1)*10)s CPU=$cpu delta=$delta running: $activeTestLabel$(if($reallyDone){' [COMPLETE DIALOG DETECTED]'})"
-    $prevCpu = $cpu
+    if ((($i + 1) % $logEveryTicks) -eq 0 -or $reallyDone) {
+        $cpu = [math]::Round($p.CPU, 1)
+        $delta = if ($prevCpu -lt 0) { $cpu } else { [math]::Round($cpu - $prevCpu, 1) }
+        $activeTest = $wins | Where-Object { $_.Class -in $knownTestClasses -and $_.Title -ne "" } | Select-Object -First 1
+        $activeTestLabel = if ($activeTest) { $activeTest.Title } else { "(CPU/Memory/Disk test - no graphics window / between sub-tests)" }
+        Write-Host "  t=$([math]::Round(($i+1)*$tickSeconds))s CPU=$cpu delta=$delta running: $activeTestLabel$(if($reallyDone){' [COMPLETE DIALOG DETECTED]'})"
+        $prevCpu = $cpu
+    }
     if ($reallyDone) { Write-Host "  Benchmark-complete summary dialog confirmed -> all sub-tests (CPU/2D/3D/Memory/Disk) finished." -ForegroundColor Green; break }
 }
 if (-not $reallyDone) { Write-Host "  [WARN] Safety timeout reached without seeing the completion dialog - proceeding anyway, results may be incomplete." -ForegroundColor Red }
@@ -505,8 +515,20 @@ if (-not $socProc.HasExited) {
     Write-Host "  SocWatch Ctrl-C sent: $ok"
 }
 Write-Host "  Waiting for EMON/SocWatch to finish finalizing/writing output..."
-$socProc.WaitForExit(60000) | Out-Null
-Start-Sleep -Seconds 2
+# SocWatch's post-stop ETL->CSV flush can legitimately take anywhere from ~2 to ~15+ minutes
+# depending on session size/power plan (observed directly across runs on this machine), and it
+# drives heavy sustained disk I/O the whole time. Proceeding to Step 7's PassMark export while that
+# I/O storm is still happening risks the export's own file write getting delayed past the
+# freshness-check window, causing spurious "export did not actually happen" retries/failures. So
+# wait for the REAL exit here (with periodic progress logging) instead of a fixed, often-too-short
+# timeout - this cannot hang indefinitely because PassMark's own benchmark-complete dialog already
+# confirmed the run is done before we got here.
+$socWaitStart = Get-Date
+while (-not $socProc.HasExited) {
+    Start-Sleep -Seconds 15
+    $elapsed = [math]::Round(((Get-Date) - $socWaitStart).TotalSeconds)
+    Write-Host "    ... still waiting on SocWatch to finish flushing (${elapsed}s elapsed)"
+}
 $emonStillRunning = Get-Process -Name "emon" -ErrorAction SilentlyContinue
 Write-Host "  Telemetry stopped. EMON exited=$(-not [bool]$emonStillRunning)  SocWatch exited=$($socProc.HasExited)" -ForegroundColor Green
 
@@ -527,8 +549,14 @@ Write-Host "  Closed $closedCount summary dialog(s)."
 
 # ---------- Step 7: auto-export results (with retry + freshness verification) ----------
 Write-Host "`n[6/7] Triggering 'Save results as text' export..." -ForegroundColor Yellow
-$perfRes = "C:\Users\Local_Admin\Documents\PassMark\PerformanceTest10\PerfRes.txt"
-$preRunTime = if (Test-Path $perfRes) { (Get-Item $perfRes).LastWriteTime } else { $null }
+# PassMark's Save dialog can land on either filename depending on what it last remembered/suggested
+# in this folder (observed directly: a manual Export produced "PassMark_PerfRes.txt" instead of the
+# usual "PerfRes.txt") - so track both candidates and pick whichever one actually got refreshed,
+# rather than hardcoding a single expected filename.
+$perfResDir = "C:\Users\Local_Admin\Documents\PassMark\PerformanceTest10"
+$perfResCandidates = @((Join-Path $perfResDir "PerfRes.txt"), (Join-Path $perfResDir "PassMark_PerfRes.txt"))
+$perfRes = $perfResCandidates[0]
+$preRunTime = ($perfResCandidates | Where-Object { Test-Path $_ } | ForEach-Object { (Get-Item $_).LastWriteTime } | Sort-Object -Descending | Select-Object -First 1)
 
 $exportSucceeded = $false
 for ($attempt = 1; $attempt -le 5 -and -not $exportSucceeded; $attempt++) {
@@ -586,16 +614,19 @@ for ($attempt = 1; $attempt -le 5 -and -not $exportSucceeded; $attempt++) {
         Write-Host "    Save dialog did not appear within timeout." -ForegroundColor Red
     }
 
-    # Verify the file actually got refreshed (not stale from a previous run)
+    # Verify the file actually got refreshed (not stale from a previous run) - check ALL candidate
+    # filenames and use whichever one is actually newer than it was before this run started.
     Start-Sleep -Seconds 1
-    if (Test-Path $perfRes) {
-        $newTime = (Get-Item $perfRes).LastWriteTime
-        if (-not $preRunTime -or $newTime -gt $preRunTime) {
-            Write-Host "  Export verified fresh (written $newTime)." -ForegroundColor Green
-            $exportSucceeded = $true
-        } else {
-            Write-Host "  File timestamp unchanged ($newTime) - export did not actually happen, retrying..." -ForegroundColor Red
-        }
+    $freshHit = $perfResCandidates | Where-Object { Test-Path $_ } | ForEach-Object {
+        [PSCustomObject]@{ Path = $_; Time = (Get-Item $_).LastWriteTime }
+    } | Where-Object { -not $preRunTime -or $_.Time -gt $preRunTime } | Sort-Object Time -Descending | Select-Object -First 1
+    if ($freshHit) {
+        $perfRes = $freshHit.Path
+        Write-Host "  Export verified fresh (written $($freshHit.Time), file: $(Split-Path $perfRes -Leaf))." -ForegroundColor Green
+        $exportSucceeded = $true
+    } else {
+        $curTimes = ($perfResCandidates | Where-Object { Test-Path $_ } | ForEach-Object { "$(Split-Path $_ -Leaf)=$((Get-Item $_).LastWriteTime)" }) -join ', '
+        Write-Host "  File timestamp(s) unchanged ($curTimes) - export did not actually happen, retrying..." -ForegroundColor Red
     }
 }
 
@@ -607,13 +638,19 @@ if (-not $exportSucceeded) {
 
 # ---------- Step 8: collect results ----------
 Write-Host "`n[7/7] Collecting results..." -ForegroundColor Yellow
-if (Test-Path $perfRes) {
-    $finalTime = (Get-Item $perfRes).LastWriteTime
+# Re-check both candidate filenames here too (not just $perfRes from the loop above) in case the
+# manual-export fallback (Read-Host prompt) wrote to the other candidate name.
+$finalHit = $perfResCandidates | Where-Object { Test-Path $_ } | ForEach-Object {
+    [PSCustomObject]@{ Path = $_; Time = (Get-Item $_).LastWriteTime }
+} | Sort-Object Time -Descending | Select-Object -First 1
+if ($finalHit) {
+    $perfRes = $finalHit.Path
+    $finalTime = $finalHit.Time
     if ($preRunTime -and $finalTime -le $preRunTime) {
-        Write-Host "  *** WARNING: PerfRes.txt is STALE (not updated since before this run). Results below may be WRONG. ***" -ForegroundColor Red
+        Write-Host "  *** WARNING: PerfRes.txt/PassMark_PerfRes.txt is STALE (not updated since before this run). Results below may be WRONG. ***" -ForegroundColor Red
     }
     Copy-Item $perfRes (Join-Path $resultsDir "PassMark_PerfRes.txt") -Force
-    Write-Host "  PassMark results saved (file timestamp: $finalTime)."
+    Write-Host "  PassMark results saved (file: $(Split-Path $perfRes -Leaf), timestamp: $finalTime)."
 } else {
     Write-Host "  WARNING: PerfRes.txt not found at expected path." -ForegroundColor Red
 }

@@ -1,0 +1,24 @@
+﻿=== Test-bed configuration (2026-10-13 21:28:49) ===
+
+-- CPU --
+Model: Intel(R) Core(TM) Ultra 7 365
+Cores/Threads: 8 cores / 8 threads
+Max clock speed (reported): 2400 MHz
+
+-- Memory --
+Total installed: 64 GB across 2 module(s)
+- 32 GB @ 6400 MT/s, SK Hynix HMCG88AHBVA315N
+- 32 GB @ 6400 MT/s, SK Hynix HMCG88AHBVA315N
+
+-- BIOS --
+Version: PTLPFWI1.R00.3514.D60.2601090934  |  Manufacturer: Intel Corporation  |  Release date: 01/08/2026 16:00:00
+
+-- Operating System --
+Microsoft Windows 11 Enterprise LTSC (Build 26100, 64-bit)
+
+-- GPU(s) --
+Intel(R) Graphics - driver 32.0.101.8357 (12/01/2025 16:00:00)
+
+-- Power plan --
+Original plan: Balanced | Applied for this run: UltimatePerformance
+Restored after run: Balanced

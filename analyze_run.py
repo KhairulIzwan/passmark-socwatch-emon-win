@@ -16,11 +16,39 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-BASE_FREQ_GHZ = 2.9  # from socwatch header: "CPU Base Operating Frequency (MHz): 2900"
-N_CORES = 16  # logical processors
+BASE_FREQ_GHZ = 2.9  # fallback only - real value is auto-detected per run from socwatch.csv
+N_CORES = 16  # fallback only - real value is auto-detected per run from socwatch.csv
 
 
-def parse_emon(emon_path: Path) -> pd.DataFrame:
+def detect_base_freq_ghz(socwatch_path: Path) -> float:
+    """Reads 'CPU Base Operating Frequency (MHz): ####' from socwatch.csv; falls back to
+    BASE_FREQ_GHZ if not found (e.g. older socwatch.csv without that header line)."""
+    try:
+        with open(socwatch_path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+        m = re.search(r"CPU Base Operating Frequency \(MHz\):\s*([\d.]+)", text)
+        if m:
+            return float(m.group(1)) / 1000.0
+    except (OSError, FileNotFoundError):
+        pass
+    return BASE_FREQ_GHZ
+
+
+def detect_n_cores(socwatch_path: Path) -> int:
+    """Counts 'Package_0/Core_N =' lines in socwatch.csv to get the real logical-CPU count;
+    falls back to N_CORES if not found."""
+    try:
+        with open(socwatch_path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+        cores = set(re.findall(r"Package_\d+/Core_(\d+)\s*=", text))
+        if cores:
+            return len(cores)
+    except (OSError, FileNotFoundError):
+        pass
+    return N_CORES
+
+
+def parse_emon(emon_path: Path, n_cores: int = N_CORES, base_freq_ghz: float = BASE_FREQ_GHZ) -> pd.DataFrame:
     """Parse emon.csv block-sampled counters into a tidy per-sample, per-core DataFrame."""
     with open(emon_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
@@ -60,14 +88,14 @@ def parse_emon(emon_path: Path) -> pd.DataFrame:
         if not inst or not reftsc:
             continue
         interval_ref = inst[0]  # column 1 = interval TSC marker (same for all rows)
-        for core in range(N_CORES):
+        for core in range(n_cores):
             col = core + 1
             if col >= len(inst):
                 break
             inst_v = inst[col]
             ref_v = reftsc[col]
             miss_v = miss[col] if miss and col < len(miss) else float("nan")
-            freq_ghz = (ref_v / interval_ref) * BASE_FREQ_GHZ if interval_ref else float("nan")
+            freq_ghz = (ref_v / interval_ref) * base_freq_ghz if interval_ref else float("nan")
             ipc = inst_v / ref_v if ref_v else float("nan")
             miss_rate = (miss_v / inst_v * 1000) if inst_v else float("nan")  # misses per 1k instr
             records.append({
@@ -136,8 +164,12 @@ def main():
     socwatch_path = run_dir / "socwatch.csv"
     passmark_path = run_dir / "PassMark_PerfRes.txt"
 
+    n_cores = detect_n_cores(socwatch_path)
+    base_freq_ghz = detect_base_freq_ghz(socwatch_path)
+    print(f"Detected SKU config: n_cores={n_cores}, base_freq_ghz={base_freq_ghz}")
+
     print(f"Parsing emon.csv from {emon_path} ...")
-    emon_df = parse_emon(emon_path)
+    emon_df = parse_emon(emon_path, n_cores=n_cores, base_freq_ghz=base_freq_ghz)
     emon_df.to_csv(out_dir / "emon_timeseries_tidy.csv", index=False)
     print(f"  -> {len(emon_df)} rows, {emon_df['sample'].nunique()} samples, "
           f"{emon_df['core'].nunique()} cores")
@@ -160,7 +192,7 @@ def main():
     fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
     axes[0].plot(avg_freq.index, avg_freq.values, color="tab:blue")
     axes[0].set_ylabel("Avg Freq (GHz)")
-    axes[0].set_title("Average CPU Frequency Across 16 Logical CPUs Over Time")
+    axes[0].set_title(f"Average CPU Frequency Across {emon_df['core'].nunique()} Logical CPUs Over Time")
     axes[0].grid(True, alpha=0.3)
 
     axes[1].plot(avg_ipc.index, avg_ipc.values, color="tab:green")
@@ -182,7 +214,7 @@ def main():
     pivot = emon_df.pivot(index="core", columns="sample", values="freq_ghz")
     fig, ax = plt.subplots(figsize=(14, 5))
     im = ax.imshow(pivot.values, aspect="auto", cmap="viridis",
-                    extent=[0, pivot.shape[1], N_CORES, 0])
+                    extent=[0, pivot.shape[1], pivot.shape[0], 0])
     ax.set_xlabel("Sample # (~1 sample/sec)")
     ax.set_ylabel("Logical CPU")
     ax.set_title("Per-Core Frequency Heatmap (GHz)")

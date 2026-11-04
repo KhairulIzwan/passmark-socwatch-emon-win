@@ -1,0 +1,58 @@
+PassMark(R) PerformanceTest 10.2 (http://www.passmark.com)
+Results generated on:  Tuesday, October 13, 2026
+Number of processes used for CPU Tests: 8
+
+
+Benchmark Results
+
+Test Name: This Computer
+Integer Math (MOps./Sec.) : 48215.5 (68%)
+Floating Point Math (MOps./Sec.) : 65717.7 (97%)
+Prime Numbers (Million Primes/Sec.) : 212.0 (96%)
+Extended Instructions (SSE) (Mill. Matrices/Sec.) : 21147.0 (90%)
+Compression (KBytes/Sec.) : 230314.5 (76%)
+Encryption (MBytes/Sec.) : 16617.7 (86%)
+Physics (Frames/Sec.) : 2226.8 (99%)
+Sorting (Thousand Strings/Sec.) : 28159.9 (77%)
+CPU Single Threaded (MOps./Sec.) : 4447.9 (99%)
+Cross-platform Mark (Composite average) : 45613.7 (90%)
+Simple Vectors (Thousand Vectors/Sec.) : 9.4 (33%)
+Fonts and Text (Ops./Sec.) : 355.2 (99%)
+Windows Interface (Ops./Sec.) : 49.8 (57%)
+Image Filters (Filters/Sec) : 1159.8 (46%)
+Image Rendering (Thousand Images/Sec) : 74.3 (49%)
+Direct 2D (Frames/Sec.) : 71.6 (93%)
+PDF Rendering (Ops./Sec.) : 54.7 (73%)
+Direct 2D - SVG (Frames/Sec.) : 104.4 (99%)
+DirectX 9 (Frames/Sec.) : 67.6 (39%)
+DirectX 10 (Frames/Sec.) : 41.9 (41%)
+DirectX 11 (Frames/Sec.) : 74.4 (36%)
+DirectX 12 (Frames/Sec.) : 18.1 (33%)
+GPU Compute (Ops./Sec.) : 1586.5 (35%)
+Database Operations (KOps./Sec.) : 6186.6 (88%)
+Memory Read Cached (MBytes/Sec.) : 35789.2 (97%)
+Memory Read Uncached (MBytes/Sec.) : 20526.7 (94%)
+Memory Write (MBytes/Sec.) : 16275.5 (94%)
+Available RAM (Megabytes) : 53139.7 (95%)
+Memory Latency (ns (lower is better)) : 40.4 (51%)
+Memory Threaded (MBytes/Sec.) : 72947.1 (99%)
+Disk Sequential Read (MBytes/Sec.) : 3969.0 (99%)
+Disk Sequential Write (MBytes/Sec.) : 3817.8 (99%)
+IOPS 32KQD20 (MBytes/Sec.) : 3056.5 (98%)
+IOPS 4KQD1 (MBytes/Sec.) : 95.0 (97%)
+CPU Mark (Composite average) : 23651.3 (90%)
+2D Graphics Mark (Composite average) : 688.3 (58%)
+Memory Mark (Composite average) : 3665.8 (94%)
+Disk Mark (Composite average) : 38867.7 (99%)
+3D Graphics Mark (Composite average) : 4265.0 (39%)
+PassMark Rating (Composite average) : 6044.3 (75%)
+
+Operating System: Windows 11 Enterprise LTSB/LTSC build 26100 (64-bit)
+CPU Type: Intel Core Ultra 7 365
+Number of CPUs: 1
+Cores per CPU: 8
+Hyperthreading: Disabled
+Motherboard: PTL-UH DDR5 Embedded CRB
+Memory: 64GB RAM
+Videocard: Intel(R) Graphics
+Hard Drive: Sabrent SB-RKT4P-500 (500GB)
