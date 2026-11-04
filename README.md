@@ -131,6 +131,11 @@ SocWatch/EMON telemetry across 3 runs on 3 different power plans - test-bed conf
 plots, cross-run comparison, and correlation findings. Raw per-run telemetry (`Results/`) is
 git-ignored as usual; this report + its plots are committed since they're the shareable output.
 
+[`reports/CASE_STUDY_WINDOWS_VS_LINUX.md`](reports/CASE_STUDY_WINDOWS_VS_LINUX.md) is an
+exploratory cross-OS comparison of this repo's results against the sibling
+[`passmark-socwatch-emon-linux`](https://github.com/KhairulIzwan/passmark-socwatch-emon-linux)
+repo on the same silicon.
+
 ## Known limitations / open items
 
 - EMON is launched via a `cmd.exe /c "call sep_vars.cmd && emon -nb ..."` wrapper; `-nb`
