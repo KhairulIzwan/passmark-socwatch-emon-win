@@ -40,7 +40,7 @@ TELEMETRY_COLS_OF_INTEREST = [
     "avg_pkg_power_mW",
     "avg_active_freq_mhz",
     "pkg_c0_pct",
-    "avg_ipc",
+    "avg_instructions_per_ref_cycle",
     "avg_cache_miss_per_kinst",
     "collection_duration_sec",
 ]
@@ -102,7 +102,7 @@ def parse_emon_summary(emon_path: Path, socwatch_path: Path = None) -> dict:
     if df.empty:
         return {}
     return {
-        "avg_ipc": df["ipc"].mean(),
+        "avg_instructions_per_ref_cycle": df["instructions_per_ref_cycle"].mean(),
         "avg_cache_miss_per_kinst": df["cache_miss_per_kinst"].mean(),
         "avg_freq_ghz_all_samples": df["freq_ghz"].mean(),
     }
@@ -275,7 +275,7 @@ def main():
     md = []
     md.append("# Telemetry ↔ PassMark Score Correlation Report\n")
     md.append(f"Generated from `{root}` — {len(df)} runs with usable data "
-              f"(PassMark + SoCWatch{', EMON' if 'avg_ipc' in df.columns else ''}).\n")
+              f"(PassMark + SoCWatch{', EMON' if 'avg_instructions_per_ref_cycle' in df.columns else ''}).\n")
 
     if sys_info:
         md.append("## Test-Bed Configuration\n")
@@ -305,7 +305,10 @@ def main():
         "power (mW), average active CPU frequency excluding idle time (MHz), and package C-state "
         "residency (% time in ACPI C0 = active).\n"
         "- **EMON** (`emon.csv`), where present, supplies ~1-sample/sec counters across the full "
-        "run; these were averaged into run-level IPC and last-level-cache-miss-rate metrics.\n"
+        "run; instructions per unhalted reference cycle are INST_RETIRED.ANY / "
+        "CPU_CLK_UNHALTED.REF_TSC, averaged equally over valid core/sample rows. "
+        "This is not conventional IPC (instructions per actual core cycle); "
+        "the historical captures lack an actual-cycle counter. LLC miss rates are also averaged.\n"
         "- Each **run becomes one observation**; correlation (Pearson r) is computed **across runs** "
         "between score metrics and telemetry metrics — this is the only valid level for score "
         "correlation since PassMark itself has no internal time resolution.\n"
@@ -330,7 +333,7 @@ def main():
     md.append("\n")
 
     plot_titles = {
-        "01_timeseries_overview.png": "Timeseries overview (freq / IPC / cache-miss)",
+        "01_timeseries_overview.png": "Timeseries overview (freq / instructions per ref cycle / cache-miss)",
         "02_per_core_freq_heatmap.png": "Per-core frequency heatmap",
         "03_cstate_residency.png": "C-state residency",
         "04_passmark_percentiles.png": "PassMark sub-test percentiles",

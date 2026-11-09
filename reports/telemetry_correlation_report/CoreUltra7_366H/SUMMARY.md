@@ -5,6 +5,14 @@ correlations: [TELEMETRY_CORRELATION_REPORT.md](TELEMETRY_CORRELATION_REPORT.md)
 
 ## Platform
 
+Metric correction: the column previously labeled IPC is instructions per
+unhalted reference cycle (`INST_RETIRED.ANY / CPU_CLK_UNHALTED.REF_TSC`),
+not instructions per actual core cycle. Values are unchanged. The archived
+EMON captures lack actual-cycle counters, so conventional IPC is unavailable.
+Derived CSVs now use `instructions_per_ref_cycle` and
+`avg_instructions_per_ref_cycle`; run averages equally weight valid
+core/sample ratios and exclude zero-reference samples.
+
 | Item | Value |
 |---|---|
 | CPU (Si) | Intel Core Ultra 7 366H, 16 cores / 16 threads (1 thread per core), 1 socket |
@@ -33,7 +41,7 @@ comparison point is needed.
 
 ## Results
 
-| Run | Power plan | CPU Mark | Memory Mark | PassMark Rating | Avg pkg power | Avg active freq | IPC |
+| Run | Power plan | CPU Mark | Memory Mark | PassMark Rating | Avg pkg power | Avg active freq | instructions/ref cycle |
 |---|---|---|---|---|---|---|---|
 | 20261103_213137 | HighPerformance | 34164 | 3722 | 6427.0 | 17.9 W | 3307 MHz | 1.01 |
 | 20261103_231839 | UltimatePerformance | 34356 | 3664 | 6315.2 | 17.6 W | 3297 MHz | 0.95 |
@@ -62,7 +70,7 @@ but the sample counts aren't directly comparable across rows.
 - **Memory Mark and overall Rating are where PowerSaver costs the most**:
   Memory Mark is about 20% lower and PassMark Rating about 20% lower than
   HighPerformance, driven by subsystems other than raw CPU compute.
-- **IPC drops noticeably under PowerSaver** (0.78 vs 1.01 on HighPerformance,
+- **instructions/ref cycle drops noticeably under PowerSaver** (0.78 vs 1.01 on HighPerformance,
   about 23% lower), consistent with the lower average active frequency and a
   less aggressive P-state response.
 

@@ -15,11 +15,12 @@ apples-to-apples benchmark - see [Caveats](#caveats--limitations).
 
 ## Scope and workload equivalence
 
-**Stage 1 examines PassMark results separately within Windows and within
-Ubuntu. There is no head-to-head OS comparison in this stage.** Scores are
-the starting point; SoC Watch and EMON provide context for each workload
-capture. OS, scheduler and power-management mechanisms are later research
-questions, not explanations established by the current observations.
+**The primary analyses examine PassMark results separately within Windows
+and within Ubuntu.** A new one-iteration cross-OS pilot is reported separately
+below as a limited observation, not an OS ranking or controlled comparison.
+Scores are the starting point; SoC Watch and EMON provide context for each
+workload capture. OS, scheduler and power-management mechanisms are later
+research questions, not explanations established by the current observations.
 
 Windows uses the GUI application; Ubuntu uses the Linux CLI build. This
 interface difference alone does not prove that the underlying CPU/Memory
@@ -34,30 +35,30 @@ The configurations are settings tested on this platform, not established
 optima or proof of either OS's maximum achievable performance. Matching
 power-profile names or limits would not establish workload equivalence.
 
+## Reference-cycle metric correction
+
+The metric previously labeled IPC is `INST_RETIRED.ANY /
+CPU_CLK_UNHALTED.REF_TSC`: instructions per unhalted reference cycle, not
+instructions per actual core cycle. Both OS analyzers use this same formula.
+The archived EMON captures do not contain an actual-core-cycle counter, so
+conventional IPC cannot be recovered from them or inferred from average
+frequency. The displayed numbers are unchanged; their interpretation is corrected.
+
+Derived CSV columns are now `instructions_per_ref_cycle` per core/sample and
+`avg_instructions_per_ref_cycle` per run, replacing `ipc` and `avg_ipc`.
+The run metric is the equal-weight mean over valid core/sample ratios, not
+the ratio of summed instructions to summed reference ticks. Zero-reference
+samples are unavailable and excluded from the mean. This metric is workload
+context, not a conventional IPC or cross-OS efficiency measurement.
+
 ## Run selection
 
-**Windows `HighPerformance` (20261103_213137) is retained as reference-only
-and excluded from the primary comparison below because its iteration count
-differs from the other Windows runs.** The operator's corrected settings are
-three iterations for HighPerformance, one each for UltimatePerformance and
-PowerSaver, and three for all Ubuntu runs. This supersedes the earlier
-32-iteration statement and the archived summary's claim of three iterations
-for every Windows plan. These settings are operator-reported, not independently
-verified from recorded invocation metadata.
-
-Windows comparisons now use `UltimatePerformance` as the reference for
-`PowerSaver`. No raw files or archived analysis CSVs have been removed or
-regenerated; those CSVs and the linked historical summaries still include
-HighPerformance. Its exclusion does not mean the capture is invalid; its
-three iterations match Ubuntu's count, but not the retained Windows pair's
-one iteration. Neither matching counts nor dividing capture time by the
-iteration count establishes cross-OS workload equivalence.
-
+The current Windows analysis compares `HighPerformance` and
+`UltimatePerformance`; `PowerSaver` is outside this stage's scope, not an
+invalid result. Its scores and telemetry remain unchanged in the archive.
 The Ubuntu comparison is limited to the `performance` profile with two CPU
-governors: `powersave` and `performance`. The `power-saver` profile run
-(`20261104_073659`) is outside this stage's scope, not an invalid result;
-its scores and telemetry remain unchanged in the archive. Windows PowerSaver
-remains part of the separate Windows comparison.
+governors: `powersave` and `performance`. Ubuntu `power-saver` is also outside
+this stage's scope, with its archived data retained.
 
 ## Evidence and traceability
 
@@ -65,7 +66,7 @@ remains part of the separate Windows comparison.
 |---|---|---|
 | PassMark | CPU/Memory marks and exported sub-test scores | Describes the benchmark outcome, not the cause of a score difference |
 | SoC Watch | Collection duration, average package power, active frequency and package C0 residency | Whole-capture behavior, not telemetry isolated to a CPU or Memory sub-test |
-| EMON | Exported counters and derived IPC/cache metrics | Requires verified event definitions, aggregation and phase alignment before cross-OS interpretation |
+| EMON | Exported counters and derived instructions/ref cycle/cache metrics | Requires verified event definitions, aggregation and phase alignment before cross-OS interpretation |
 | System information | Hardware, OS and recorded power settings | Configuration context, not proof that effective policies are equivalent |
 
 Windows backing data lives in the [SKU archive](telemetry_correlation_report/CoreUltra7_366H/):
@@ -85,9 +86,8 @@ per-run score artifacts before reuse.
 
 | OS / configuration | Run IDs |
 |---|---|
-| Windows `HighPerformance` (reference-only) | 20261103_213137 |
+| Windows `HighPerformance` | 20261103_213137 |
 | Windows `UltimatePerformance` | 20261103_231839 |
-| Windows `PowerSaver` | 20261103_233441 |
 | Linux `performance`, `powersave` governor | 20261104_073216, 20261104_080450, 20261104_081815 |
 | Linux `performance`, `performance` governor | 20261104_075827, 20261104_081132, 20261104_082458 |
 
@@ -114,80 +114,75 @@ would be needed to measure iteration or sub-test durations.
 | Linux test date | 2026-11-04 |
 
 Windows used PassMark PerformanceTest 10.2; the Linux summary identifies the
-CLI build but does not record its version. The runs use Short duration;
-the retained Windows pair used one iteration each, while Ubuntu used three,
-per the operator clarification above. Equivalence of the benchmark builds,
-sub-tests and process/thread settings has not yet been established.
+CLI build but does not record its version. The runs use Short duration. The
+Windows captures in scope used three iterations for HighPerformance and one
+for UltimatePerformance; Ubuntu used three per run, per operator clarification.
+These settings are operator-reported, not independently verified. Equivalence
+of the benchmark builds, sub-tests and process/thread settings has not yet
+been established.
+
+### PassMark suite coverage
+
+| OS | Suite selection | What the archived score export contains |
+|---|---|---|
+| Windows | Automation triggers PassMark's `Run All Tests` command | CPU, 2D graphics, 3D graphics, memory, disk, and overall Rating results |
+| Ubuntu | Run command used `-r All` (`-r 3`) | CPU and Memory sub-test scores and marks in `results_console_all.yml` |
+
+The recorded suite coverage differs: Windows' run includes graphics and disk
+tests, while the archived Ubuntu score export contains CPU and Memory results.
+Thus the Windows overall PassMark Rating and whole-capture telemetry include
+workloads absent from the Ubuntu score export. This is another reason to keep
+the OS analyses separate; even similarly named CPU/Memory marks do not prove
+identical suite composition or sub-test implementation.
 
 ## Windows: PassMark observations
 
-Reference: `UltimatePerformance`. HighPerformance remains reference-only as
-explained in Run selection. Each row represents one independent capture;
-Runs does not count iterations within a capture. Package power is converted
-from mW to W, and displayed values are rounded after calculation.
-
-| Configuration | Runs | CPU Mark | Memory Mark | Avg pkg power | Avg active freq | IPC |
-|---|---|---|---|---|---|---|
-| `UltimatePerformance` | 1 | 34356 | 3664 | 17.6 W | 3297 MHz | 0.95 |
-| `PowerSaver` | 1 | 33906 | 2966 | 13.8 W | 2899 MHz | 0.78 |
-
-### Score observations
-
-The tables below use the per-run Windows text exports for UltimatePerformance
-(`20261103_231839`) and PowerSaver (`20261103_233441`). Change is
-`100 * (PowerSaver / UltimatePerformance - 1)`, calculated before rounding.
-It is a change in the reported value, not always a performance improvement:
-lower memory latency is better, and available RAM is a capacity observation.
-The comparison focuses on CPU and memory; graphics/disk results remain in
-the archived exports. Exported percentile annotations are not used as deltas.
+This stage compares the available `HighPerformance` and
+`UltimatePerformance` captures. HighPerformance used three iterations and
+UltimatePerformance one, per operator clarification; these settings are not
+independently verified in the archived files. Treat this as a preliminary
+comparison, not a matched repeatability test. Values come from each run's
+PassMark export. Change is `100 * (UltimatePerformance / HighPerformance - 1)`,
+calculated before rounding. Positive means the reported value is higher;
+for memory latency, lower is better. Available RAM is capacity, not a score.
 
 #### CPU scores
 
-| Test / unit | UltimatePerformance | PowerSaver | Change |
+| Test / unit | HighPerformance (3 iterations) | UltimatePerformance (1 iteration) | Change |
 |---|---|---|---|
-| CPU Mark (composite) | 34355.6 | 33906.2 | -1.3% |
-| Integer Math (MOps/s) | 85488.8 | 75935.6 | -11.2% |
-| Floating Point Math (MOps/s) | 112807.7 | 95000.0 | -15.8% |
-| Prime Numbers (million primes/s) | 366.5 | 309.1 | -15.7% |
-| Extended Instructions SSE (million matrices/s) | 31789.0 | 30723.6 | -3.4% |
-| Compression (KBytes/s) | 316608.0 | 357559.2 | +12.9% |
-| Encryption (MBytes/s) | 25348.6 | 25758.4 | +1.6% |
-| Physics (frames/s) | 2792.8 | 2976.8 | +6.6% |
-| Sorting (thousand strings/s) | 36706.3 | 44043.3 | +20.0% |
-| CPU Single Threaded (MOps/s) | 4475.0 | 3639.7 | -18.7% |
-| Cross-platform Mark (composite) | 71695.4 | 70709.0 | -1.4% |
+| CPU Mark (composite) | 34163.7 | 34355.6 | +0.56% |
+| Integer Math (MOps/s) | 89017.5 | 85488.8 | -3.96% |
+| Floating Point Math (MOps/s) | 113777.3 | 112807.7 | -0.85% |
+| Prime Numbers (million primes/s) | 366.9 | 366.5 | -0.11% |
+| Extended Instructions SSE (million matrices/s) | 31979.3 | 31789.0 | -0.60% |
+| Compression (KBytes/s) | 293334.0 | 316608.0 | +7.93% |
+| Encryption (MBytes/s) | 25439.9 | 25348.6 | -0.36% |
+| Physics (frames/s) | 2799.0 | 2792.8 | -0.22% |
+| Sorting (thousand strings/s) | 37256.6 | 36706.3 | -1.48% |
+| CPU Single Threaded (MOps/s) | 4461.4 | 4475.0 | +0.30% |
+| Cross-platform Mark (composite) | 73334.2 | 71695.4 | -2.23% |
 
 #### Memory results
 
-| Test / unit | UltimatePerformance | PowerSaver | Change |
+| Test / unit | HighPerformance (3 iterations) | UltimatePerformance (1 iteration) | Change |
 |---|---|---|---|
-| Memory Mark (composite) | 3663.6 | 2966.3 | -19.0% |
-| Database Operations (KOps/s) | 6884.7 | 1193.3 | -82.7% |
-| Memory Read Cached (MBytes/s) | 35860.4 | 29294.6 | -18.3% |
-| Memory Read Uncached (MBytes/s) | 19848.9 | 18578.6 | -6.4% |
-| Memory Write (MBytes/s) | 16200.4 | 15334.4 | -5.3% |
-| Available RAM (MB; capacity) | 53700.5 | 53638.8 | -0.1% |
-| Memory Latency (ns; lower is better) | 41.3 | 44.1 | +6.8% |
-| Memory Threaded (MBytes/s) | 89699.4 | 88434.3 | -1.4% |
+| Memory Mark (composite) | 3721.9 | 3663.6 | -1.57% |
+| Database Operations (KOps/s) | 7415.4 | 6884.7 | -7.16% |
+| Memory Read Cached (MBytes/s) | 35938.7 | 35860.4 | -0.22% |
+| Memory Read Uncached (MBytes/s) | 20111.3 | 19848.9 | -1.30% |
+| Memory Write (MBytes/s) | 16200.4 | 16200.4 | +0.00% |
+| Available RAM (MB; capacity) | 53878.5 | 53700.5 | -0.33% |
+| Memory Latency (ns; lower is better) | 40.3 | 41.3 | +2.48% |
+| Memory Threaded (MBytes/s) | 90229.8 | 89699.4 | -0.59% |
 
-- Against UltimatePerformance, PowerSaver records ~1.3% lower CPU Mark and
-  ~19.0% lower Memory Mark. These are observations from one capture per plan.
-- The composite CPU Mark hides different sub-test responses. Integer Math
-  falls from 85488.8 to 75935.6 MOps/s (~11.2%), and CPU Single Threaded falls
-  from 4475.0 to 3639.7 MOps/s (~18.7%). Compression rises from 316608.0 to
-  357559.2 KBytes/s (~12.9%). Repeat testing is needed before attributing
-  these differences to the selected plan.
-- Database Operations records the largest decline among the memory results
-  shown, while memory latency increases. These identify results to investigate,
-  not a demonstrated cause or a reconstruction of Memory Mark's weighting.
-
-### Supporting telemetry
-
-PowerSaver records ~21.3% lower average package power and lower active
-frequency. Package C0 residency is 73.67% for UltimatePerformance and 88.97%
-for PowerSaver. These describe the full captures, not isolated CPU or Memory
-sub-tests. They do not establish energy per unit of work, CPU utilization,
-or a causal explanation for the score changes.
+The composite CPU and Memory Marks are close in these captures: about 0.6%
+and 1.6% apart. Some sub-tests differ more; for example, Compression is
+7.9% higher under UltimatePerformance while Integer Math is 4.0% lower.
+The telemetry shows whole-run average package power of 17.9 W versus 17.6 W,
+active frequency of 3307 versus 3297 MHz, and package C0 residency of 75.33%
+versus 73.67%. These observations do not establish that the plans are
+equivalent or explain the score results. Windows PowerSaver is outside this
+stage's scope; its raw scores and telemetry remain in the archive unchanged.
 
 ## Ubuntu: PassMark observations
 
@@ -198,7 +193,7 @@ governor differs. Scores use the console-derived YAMLs; telemetry uses the
 analysis CSV values, averaged before rounding. Package power is converted
 from mW to W.
 
-| Configuration | Runs | CPU Mark | Memory Mark | Avg pkg power | Avg active freq | IPC |
+| Configuration | Runs | CPU Mark | Memory Mark | Avg pkg power | Avg active freq | instructions/ref cycle |
 |---|---|---|---|---|---|---|
 | `performance` profile, `powersave` governor | 3 | 30732 | 3772 | 21.6 W | 2947 MHz | 1.63 |
 | `performance` profile, `performance` governor | 3 | 29891 | 3763 | 21.6 W | 2932 MHz | 1.58 |
@@ -264,7 +259,7 @@ frequencies of 2947 MHz for the powersave governor and 2932 MHz for the
 performance governor. Package C0 residency remains near 99%. These are
 whole-capture observations, not proof of identical power behavior during
 each sub-test or a causal explanation for the score differences.
-IPC is retained as workload context within Ubuntu, not an OS ranking metric.
+instructions/ref cycle is retained as workload context within Ubuntu, not an OS ranking metric.
 
 ## Next investigation
 
@@ -289,8 +284,51 @@ of the score differences. Neither is a prerequisite for describing the
 sub-test scores already archived.
 
 Only after that should OS, power-policy, scheduler or compiler mechanisms be
-investigated as possible explanations. The current stage neither attributes
-the differences to those mechanisms nor compares the two OSes head to head.
+investigated as possible explanations. The separate pilot below is a
+descriptive score comparison only; it does not establish workload equivalence,
+attribute differences to an OS mechanism, or rank the operating systems.
+
+## Exploratory cross-OS pilot: one iteration each
+
+This is a first, limited score comparison between Windows UltimatePerformance
+run `20261103_231839` and the Ubuntu `performance` profile / `powersave`
+governor run `20261110_025123`. Both were reported as Short duration, one
+iteration and 16 CPU test processes. Windows used PerformanceTest 10.2 and
+`Run All Tests`; the Ubuntu CLI build version is not recorded and was invoked
+with `-r All`. The Windows export contains CPU, graphics, memory and disk
+results, while Ubuntu's console-derived export contains CPU and memory results.
+Only the named CPU and Memory Marks are shown here; their similarly named
+scores do not establish identical sub-tests or scoring.
+
+| PassMark score | Windows UltimatePerformance | Ubuntu performance / powersave | Ubuntu vs. Windows |
+|---|---:|---:|---:|
+| CPU Mark | 34355.6 | 32253.0 | -6.12% |
+| Memory Mark | 3663.6 | 3759.0 | +2.60% |
+
+These are one capture per OS, not repeatable estimates. The Ubuntu CPU Mark
+is 4.95% above the mean of the earlier three-iteration Ubuntu performance /
+powersave captures; do not combine that new one-iteration score with their
+three-iteration mean. The difference is a reason to repeat matched one-iteration
+runs, not evidence that the earlier results or this pilot are wrong.
+
+### Whole-capture telemetry context
+
+| SoC Watch measure | Windows UltimatePerformance | Ubuntu pilot |
+|---|---:|---:|
+| Average package power | 17.56 W | 24.55 W |
+| Average active frequency | 3297 MHz | 3185 MHz |
+| Collection duration | 394.162 s | 95.001 s |
+
+These summaries cover the complete captures, not matched PassMark sub-test
+phases. Suite coverage and capture duration differ, so the power and frequency
+values are context only; they do not explain the score difference or establish
+energy efficiency. The Ubuntu SocWatch log reports unsupported-feature
+warnings, although its output contains power and frequency summaries. Validate
+that telemetry configuration before relying on it.
+
+Sources: [Windows score export](telemetry_correlation_report/CoreUltra7_366H/20261103_231839/PassMark_PerfRes.txt),
+[Windows SoC Watch capture](telemetry_correlation_report/CoreUltra7_366H/20261103_231839/socwatch.csv),
+[Ubuntu pilot archive](https://github.com/KhairulIzwan/passmark-socwatch-emon-linux/tree/main/reports/telemetry_correlation_report/CoreUltra7_366H/20261110_025123).
 
 ## Caveats / limitations
 
@@ -298,17 +336,18 @@ the differences to those mechanisms nor compares the two OSes head to head.
   on different dates, with different harness implementations
   (`run_combined_test.ps1` vs `run_combined_test.sh`) and partially different
   SoC Watch versions (pre-release vs release).
-- **Iteration counts differ.** Windows HighPerformance used three iterations;
-  UltimatePerformance and PowerSaver used one each; Ubuntu used three per run,
-  per the operator. HighPerformance is reference-only for the current Windows
-  pair comparison. Thermal and phase weighting can change with run length,
-  even for rate-based scores. Normalizing total capture duration does not
-  provide measured per-iteration timings or remove these differences.
-- **Windows has n=1 per retained plan; Ubuntu has n=3 per included governor
-  configuration.** Ubuntu's power-saver run is outside this stage's scope.
-  Its repeated performance-profile CPU Marks agree within ~0.4%; that does
-  not establish repeatability for the single-run Windows configurations.
-- **IPC comparability is unverified** (see above): EMON event definitions,
+- **Iteration counts differ across captures.** The primary Windows runs used
+  three (HighPerformance) and one (UltimatePerformance) iteration; the primary
+  Ubuntu governor groups used three per run. The new pilot uses one iteration
+  on each OS. These counts are operator-reported and not recorded in the
+  archived run metadata. Capture duration does not provide per-iteration
+  timings or eliminate thermal/workload-phase differences.
+- **Repeatability is limited.** The primary Windows plans each have one capture;
+  the primary Ubuntu governor groups have three captures each. The cross-OS
+  pilot is one capture per OS. Ubuntu's repeated performance-profile CPU Marks
+  agree within ~0.4%, but this does not establish repeatability for the pilot
+  or Windows captures.
+- **instructions/ref cycle comparability is unverified** (see above): EMON event definitions,
   aggregation and collection windows have not been aligned.
 - Conclusions here are **directional observations for further investigation**,
   not a certified OS power-efficiency comparison.
@@ -318,14 +357,15 @@ the differences to those mechanisms nor compares the two OSes head to head.
 Use the existing SKU archives and per-run score exports to extend the
 within-OS analysis, then update the tables above by hand; this file is not
 auto-generated. When new runs are available, regenerate their analysis from
-`Results/` and refresh the relevant SKU archive and summary.
-Filter out Windows run `20261103_213137` when deriving this comparison from
-the historical CSVs for the primary Windows pair comparison. To compare all
-Windows plans at matching iteration counts, rerun HighPerformance with one
-iteration, or UltimatePerformance and PowerSaver with three. Record invocation
-settings and iteration/sub-test timestamps, then update run IDs, source
-references and affected comparisons. Three iterations for all configurations
-would also match Ubuntu's iteration setting, without proving workload equivalence.
+`Results/` and refresh the relevant SKU archive and summary. For the current
+Windows comparison, include runs `20261103_213137` (HighPerformance) and
+`20261103_231839` (UltimatePerformance); leave `20261103_233441` (PowerSaver)
+out of the analysis without modifying its archived files. The included Windows
+captures use three versus one iteration, so treat the close composite scores
+as preliminary. A matched comparison would require rerunning one plan at the
+other's iteration count and recording invocation settings. Record iteration/
+sub-test timestamps if telemetry is to be aligned to individual workload
+phases. The Ubuntu governor comparison remains a separate within-OS analysis.
 Before a controlled follow-up comparison, verify benchmark versions and
 sub-test implementations, scoring and suite coverage, process/thread counts,
 effective power settings, matched telemetry
