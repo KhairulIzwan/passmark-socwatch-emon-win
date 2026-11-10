@@ -292,43 +292,102 @@ attribute differences to an OS mechanism, or rank the operating systems.
 
 This is a first, limited score comparison between Windows UltimatePerformance
 run `20261103_231839` and the Ubuntu `performance` profile / `powersave`
-governor run `20261110_025123`. Both were reported as Short duration, one
-iteration and 16 CPU test processes. Windows used PerformanceTest 10.2 and
+governor run `20261110_025123`, with a second Ubuntu run using the `balanced`
+profile / `powersave` governor (`20261110_084903`). All three captures were
+reported as Short duration, one iteration and 16 CPU test processes. Windows
+used PerformanceTest 10.2 and
 `Run All Tests`; the Ubuntu CLI build version is not recorded and was invoked
 with `-r All`. The Windows export contains CPU, graphics, memory and disk
 results, while Ubuntu's console-derived export contains CPU and memory results.
-Only the named CPU and Memory Marks are shown here; their similarly named
-scores do not establish identical sub-tests or scoring.
+Only the common CPU and Memory Marks are shown here; extracting these score
+fields does not make the executed suites or sub-tests equivalent. The Windows
+automation always launches `Run All Tests` and has no suite selector, so this
+capture's telemetry duration/power/frequency cannot be split into CPU/Memory
+versus graphics/disk portions after the fact.
 
-| PassMark score | Windows UltimatePerformance | Ubuntu performance / powersave | Ubuntu vs. Windows |
-|---|---:|---:|---:|
-| CPU Mark | 34355.6 | 32253.0 | -6.12% |
-| Memory Mark | 3663.6 | 3759.0 | +2.60% |
+Both run snapshots identify the CPU as Intel Core Ultra 7 366H (16 cores / 16
+threads). The Ubuntu pilot's local `passmark_console_raw.log` records its
+observed order: CPU tests (Integer Math, Floating Point, Prime Numbers,
+Sorting, Encryption, Compression, Single Threaded, Physics, SSE), followed
+by Memory tests (Database Operations, cached/uncached reads, Write, Available
+RAM, Latency, Threaded). The Windows archive has the final
+`PassMark_PerfRes.txt` score listing but no comparable per-test execution
+timeline; its listing order is not treated as run order. Therefore, the
+sub-test sequence cannot currently be compared across operating systems.
+The Ubuntu PassMark console banner reports "14 cores @ 3800 MHz", while that
+run's OS snapshot and SoC Watch report 16 online logical CPUs / 16 cores and
+the command used 16 test processes. A separate [PassMark topology probe log](https://github.com/KhairulIzwan/passmark-socwatch-emon-linux/tree/main/reports/telemetry_correlation_report/CoreUltra7_366H/20261110_025123/topology_probe)
+reports 16 logical CPUs, one thread per core, four logical P-cores and 12
+logical E-cores, but sets `logical_per_pcore=2`. This is consistent with the
+14-core banner if the four logical P-cores are divided by two and then added
+to the 12 E-cores. Most CPU tests in that probe ran on 16 threads, but
+`Primes Cross Platform` ran on 14. This points to PassMark's topology/thread
+heuristic as the source of the displayed count; the OS still reports 16
+online CPUs. The precise vendor-side cause remains unverified.
 
-These are one capture per OS, not repeatable estimates. The Ubuntu CPU Mark
-is 4.95% above the mean of the earlier three-iteration Ubuntu performance /
-powersave captures; do not combine that new one-iteration score with their
-three-iteration mean. The difference is a reason to repeat matched one-iteration
-runs, not evidence that the earlier results or this pilot are wrong.
+| PassMark score | Windows UltimatePerformance | Ubuntu performance / powersave | Ubuntu balanced / powersave | Performance Ubuntu vs. Windows | Balanced Ubuntu vs. Windows |
+|---|---:|---:|---:|---:|---:|
+| CPU Mark | 34355.6 | 32253.0 | 30651.0 | -6.12% | -10.78% |
+| Memory Mark | 3663.6 | 3759.0 | 3511.0 | +2.60% | -4.17% |
+
+These are one capture per configuration, not repeatable estimates. The Ubuntu
+performance/powersave CPU Mark is 4.95% above the mean of the earlier
+three-iteration runs; the balanced/powersave CPU Mark is 0.26% below that mean.
+Keep both one-iteration results separate from the earlier three-iteration mean.
+These differences call for repeat matched one-iteration runs; they do not show
+that either earlier or current result is wrong.
 
 ### Whole-capture telemetry context
 
-| SoC Watch measure | Windows UltimatePerformance | Ubuntu pilot |
-|---|---:|---:|
-| Average package power | 17.56 W | 24.55 W |
-| Average active frequency | 3297 MHz | 3185 MHz |
-| Collection duration | 394.162 s | 95.001 s |
+| SoC Watch measure | Windows UltimatePerformance | Ubuntu performance / powersave | Ubuntu balanced / powersave |
+|---|---:|---:|---:|
+| Average package power | 17.56 W | 24.55 W | 24.35 W |
+| Average active frequency | 3297 MHz | 3185 MHz | 3070 MHz |
+| Collection duration | 394.162 s | 95.001 s | 95.982 s |
 
 These summaries cover the complete captures, not matched PassMark sub-test
-phases. Suite coverage and capture duration differ, so the power and frequency
-values are context only; they do not explain the score difference or establish
-energy efficiency. The Ubuntu SocWatch log reports unsupported-feature
-warnings, although its output contains power and frequency summaries. Validate
-that telemetry configuration before relying on it.
+phases. Windows took 394.162 s and the Ubuntu runs 95.001 and 95.982 s.
+Windows' additional
+graphics and disk tests plausibly contribute to the longer capture, but these
+whole-run measurements cannot quantify their contribution or establish the
+CPU/Memory-only duration. Suite coverage and capture duration differ, so
+power and frequency are context only; they do not explain the score difference
+or establish energy efficiency. Both Ubuntu SocWatch logs report unsupported-
+feature warnings, although their outputs contain power and frequency summaries.
+Validate that telemetry configuration before relying on it.
+
+### EMON context: whole-capture counters
+
+| EMON-derived measure | Windows UltimatePerformance | Ubuntu performance / powersave | Ubuntu balanced / powersave |
+|---|---:|---:|---:|
+| Samples | 393 | 97 | 98 |
+| Instructions per unhalted reference cycle | 0.9532 | 1.6995 | 1.8625 |
+| LLC misses per 1,000 retired instructions | 24.726 | 24.591 | 13.802 |
+| Mean frequency across logical CPU/sample rows, including idle samples | 0.592 GHz | 2.006 GHz | 2.084 GHz |
+
+![Per-sample EMON trends across the complete Windows and Ubuntu captures; samples are not aligned to PassMark phases or process IDs.](cross_os_pilot_emon_timeseries.png)
+
+The plot shows changes across each full capture, not per-process or per-test
+behavior. EMON samples have no PassMark test/process IDs, while the archived
+SoC Watch CSV provides whole-capture summaries and aggregate process activity,
+not a time-aligned power/frequency series. Thus, visible transitions cannot be
+reliably assigned to CPU, memory, graphics, disk, or an individual process.
+That requires synchronized PassMark phase markers and process-aware telemetry.
+
+These are whole-capture averages using the same named EMON events, but over
+different sample counts and suite compositions. The instructions/reference-cycle
+ratio is not conventional IPC; actual core-cycle counters are absent. The
+idle-inclusive EMON frequency average is not SoC Watch's active-only frequency
+and is sensitive to how much of each capture each logical CPU was idle. These
+metrics are descriptive context, not per-sub-test attribution or an OS ranking.
+
+![One-run Windows and two Ubuntu configurations for the PassMark and telemetry pilot; suite coverage, capture durations, and metric limitations are noted.](cross_os_pilot_comparison.png)
 
 Sources: [Windows score export](telemetry_correlation_report/CoreUltra7_366H/20261103_231839/PassMark_PerfRes.txt),
 [Windows SoC Watch capture](telemetry_correlation_report/CoreUltra7_366H/20261103_231839/socwatch.csv),
-[Ubuntu pilot archive](https://github.com/KhairulIzwan/passmark-socwatch-emon-linux/tree/main/reports/telemetry_correlation_report/CoreUltra7_366H/20261110_025123).
+[Ubuntu performance pilot](https://github.com/KhairulIzwan/passmark-socwatch-emon-linux/tree/main/reports/telemetry_correlation_report/CoreUltra7_366H/20261110_025123),
+[Ubuntu balanced pilot](https://github.com/KhairulIzwan/passmark-socwatch-emon-linux/tree/main/reports/telemetry_correlation_report/CoreUltra7_366H/20261110_084903).
+The aggregate pilot chart is generated by [plot_cross_os_pilot.py](plot_cross_os_pilot.py).
 
 ## Caveats / limitations
 
@@ -344,7 +403,7 @@ Sources: [Windows score export](telemetry_correlation_report/CoreUltra7_366H/202
   timings or eliminate thermal/workload-phase differences.
 - **Repeatability is limited.** The primary Windows plans each have one capture;
   the primary Ubuntu governor groups have three captures each. The cross-OS
-  pilot is one capture per OS. Ubuntu's repeated performance-profile CPU Marks
+  pilot has one capture per configuration. Ubuntu's repeated performance-profile CPU Marks
   agree within ~0.4%, but this does not establish repeatability for the pilot
   or Windows captures.
 - **instructions/ref cycle comparability is unverified** (see above): EMON event definitions,
