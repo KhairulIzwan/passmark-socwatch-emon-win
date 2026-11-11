@@ -1,37 +1,37 @@
 score,telemetry,r,p_value,n
-PassMark Rating (Composite average),avg_pkg_power_mW,0.9999771647192341,0.004302284492416603,3
-2D Graphics Mark (Composite average),avg_pkg_power_mW,0.9999007316594071,0.008970240655895122,3
-Memory Mark (Composite average),avg_pkg_power_mW,0.9998924705935164,0.009336038561393749,3
-Memory Mark (Composite average),avg_active_freq_mhz,0.9988130083339976,0.031021437857153864,3
-PassMark Rating (Composite average),avg_active_freq_mhz,0.9983966464670729,0.03605519192612925,3
-2D Graphics Mark (Composite average),avg_active_freq_mhz,0.9969996321869622,0.049327717074435715,3
-3D Graphics Mark (Composite average),avg_cache_miss_per_kinst,-0.9968159054236659,0.05081634253567779,3
-2D Graphics Mark (Composite average),avg_instructions_per_ref_cycle,0.9898090931231209,0.09096431419229008,3
-PassMark Rating (Composite average),avg_instructions_per_ref_cycle,0.9866253706152284,0.10423683934059555,3
-Memory Mark (Composite average),pkg_c0_pct,-0.9858516204074227,0.10721655598843756,3
-Memory Mark (Composite average),avg_instructions_per_ref_cycle,0.9853056671428365,0.10927059340956807,3
-PassMark Rating (Composite average),pkg_c0_pct,-0.9844954417892102,0.11225031005740901,3
-2D Graphics Mark (Composite average),pkg_c0_pct,-0.9806247282964091,0.12552283520571578,3
-Disk Mark (Composite average),collection_duration_sec,-0.9674100172136728,0.16297604269404045,3
-3D Graphics Mark (Composite average),avg_instructions_per_ref_cycle,0.9463874505181352,0.2094054650692727,3
-CPU Mark (Composite average),pkg_c0_pct,-0.9425895809701281,0.21676564533133474,3
-2D Graphics Mark (Composite average),avg_cache_miss_per_kinst,-0.9241477422952262,0.24955343672588273,3
-PassMark Rating (Composite average),avg_cache_miss_per_kinst,-0.9159826457270959,0.26282596187418905,3
-Memory Mark (Composite average),avg_cache_miss_per_kinst,-0.9127816142062896,0.2678597159431605,3
-CPU Mark (Composite average),avg_active_freq_mhz,0.8959718212972849,0.2929607634626142,3
-3D Graphics Mark (Composite average),avg_pkg_power_mW,0.8842502552611904,0.309340019917451,3
-3D Graphics Mark (Composite average),collection_duration_sec,0.8842455513536496,0.3093464320936269,3
-CPU Mark (Composite average),avg_pkg_power_mW,0.8660372579106541,0.33331823988116177,3
-3D Graphics Mark (Composite average),avg_active_freq_mhz,0.8528883445888709,0.3496974963359981,3
-3D Graphics Mark (Composite average),pkg_c0_pct,-0.7844481179883825,0.42589261446727783,3
-CPU Mark (Composite average),avg_instructions_per_ref_cycle,0.7772255703988955,0.4332527947293396,3
-Disk Mark (Composite average),avg_cache_miss_per_kinst,0.6809446620250545,0.5231388173233462,3
-CPU Mark (Composite average),avg_cache_miss_per_kinst,-0.5981040063550915,0.591841917262933,3
-2D Graphics Mark (Composite average),collection_duration_sec,0.5753699049039698,0.6097162113551889,3
-PassMark Rating (Composite average),collection_duration_sec,0.5581943057895741,0.6229887365034954,3
-Memory Mark (Composite average),collection_duration_sec,0.5516164038706893,0.628022490572467,3
-Disk Mark (Composite average),avg_instructions_per_ref_cycle,-0.47937339442975446,0.6817279398569398,3
-Disk Mark (Composite average),avg_pkg_power_mW,-0.33627971378904375,0.7816624947051177,3
-Disk Mark (Composite average),avg_active_freq_mhz,-0.27594273020802607,0.822019971123665,3
-Disk Mark (Composite average),pkg_c0_pct,0.1592030592118851,0.8982150892549446,3
-CPU Mark (Composite average),collection_duration_sec,0.07531945645771737,0.9520046918922391,3
+Memory Mark (Composite average),avg_active_freq_mhz,0.9982127795667459,9.067437647727953e-05,5
+2D Graphics Mark (Composite average),pkg_c0_pct,-0.9939063451551555,0.0005704968757825518,5
+PassMark Rating (Composite average),avg_active_freq_mhz,0.9924474359960151,0.0007870147319577911,5
+PassMark Rating (Composite average),pkg_c0_pct,-0.9175844058026746,0.028048195917340486,5
+3D Graphics Mark (Composite average),pkg_c0_pct,-0.8872973875374803,0.044642991977920155,5
+2D Graphics Mark (Composite average),avg_active_freq_mhz,0.8797807241973534,0.049125194070283325,5
+Memory Mark (Composite average),avg_pkg_power_mW,0.8686950625565815,0.05597721931794112,5
+Memory Mark (Composite average),pkg_c0_pct,-0.8479465896625539,0.06952902334025632,5
+CPU Mark (Composite average),avg_instructions_per_ref_cycle,0.8151682689329881,0.09269914830960492,5
+Disk Mark (Composite average),pkg_c0_pct,0.7873860410673779,0.11385752030723358,5
+PassMark Rating (Composite average),avg_pkg_power_mW,0.7821214444929888,0.11801211605172561,5
+Memory Mark (Composite average),avg_cache_miss_per_kinst,-0.7463809675667543,0.14735086888517746,5
+PassMark Rating (Composite average),avg_cache_miss_per_kinst,-0.6585133777974386,0.2268772213394196,5
+CPU Mark (Composite average),avg_pkg_power_mW,0.6353923090310917,0.2493236031989897,5
+Memory Mark (Composite average),avg_instructions_per_ref_cycle,0.5625057442412008,0.3235982477212902,5
+3D Graphics Mark (Composite average),avg_active_freq_mhz,0.5618084375446537,0.324332517152732,5
+Disk Mark (Composite average),avg_active_freq_mhz,-0.5436626967730349,0.3435857382770049,5
+CPU Mark (Composite average),avg_cache_miss_per_kinst,-0.5041365085870391,0.3864473777911589,5
+2D Graphics Mark (Composite average),avg_pkg_power_mW,0.4972546062137118,0.39403221236454655,5
+PassMark Rating (Composite average),avg_instructions_per_ref_cycle,0.4345378280497604,0.4646708177428924,5
+2D Graphics Mark (Composite average),avg_cache_miss_per_kinst,-0.3820312449665713,0.5256882141005087,5
+3D Graphics Mark (Composite average),avg_instructions_per_ref_cycle,-0.3762213221704055,0.5325333693459118,5
+CPU Mark (Composite average),collection_duration_sec,0.3274803485817546,0.5906165217511413,5
+3D Graphics Mark (Composite average),collection_duration_sec,-0.3057592413226821,0.6168492173498146,5
+Memory Mark (Composite average),collection_duration_sec,0.27611831745168103,0.6529550669574031,5
+CPU Mark (Composite average),pkg_c0_pct,0.2594708717440446,0.6733768105553983,5
+Disk Mark (Composite average),avg_instructions_per_ref_cycle,0.21538815325190852,0.7278947234234565,5
+Disk Mark (Composite average),avg_cache_miss_per_kinst,0.20321803732753627,0.743046881896048,5
+CPU Mark (Composite average),avg_active_freq_mhz,0.19608952839311855,0.7519404233068565,5
+PassMark Rating (Composite average),collection_duration_sec,0.1890602406395656,0.7607228479700047,5
+Disk Mark (Composite average),avg_pkg_power_mW,-0.11683029086937322,0.8515861458899044,5
+Disk Mark (Composite average),collection_duration_sec,-0.07530239703274508,0.9042126994197246,5
+2D Graphics Mark (Composite average),avg_instructions_per_ref_cycle,0.07477063503127868,0.9048878510425908,5
+2D Graphics Mark (Composite average),collection_duration_sec,-0.04421395264578813,0.9437233940307148,5
+3D Graphics Mark (Composite average),avg_pkg_power_mW,0.0415155302245476,0.947155973280688,5
+3D Graphics Mark (Composite average),avg_cache_miss_per_kinst,0.03176505131608266,0.9595622830982545,5

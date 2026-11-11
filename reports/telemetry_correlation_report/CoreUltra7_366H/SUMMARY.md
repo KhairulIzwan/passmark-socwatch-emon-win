@@ -21,12 +21,23 @@ core/sample ratios and exclude zero-reference samples.
 | BIOS | PTLPFWI1.R00.3515.D56.2601280733 (01/27/2026) |
 | GPU | Intel(R) Graphics, driver 32.0.101.8357 |
 | OS | Windows 11 Enterprise LTSC, Build 26100 (64-bit) |
-| Tools | PassMark PerformanceTest 10.2, EMON V11.61, SoC Watch v2026.2.0 |
+| Tools (2026-11-03 runs) | PassMark PerformanceTest **10.2**, EMON V11.61, SoC Watch v2026.2.0 |
+| Tools (2026-11-10 runs) | PassMark PerformanceTest **11.1**, EMON V11.61, SoC Watch v2026.6.0 |
 
 ## Test setup
 
-All runs: `.\run_combined_test.ps1 -TestDuration Short -TestIterations 3 -PowerPlan <plan>`
-with EMON + SoC Watch running. Date: 2026-11-03/04. Windows has no exposed
+Two batches, both `.\run_combined_test.ps1 -TestDuration Short ... -PowerPlan <plan>`
+with EMON + SoC Watch running:
+
+- **2026-11-03/04** - PassMark 10.2, `-TestIterations 3`.
+- **2026-11-10** - PassMark 11.1, `-TestIterations 1 -SocWatchSafetyCapSeconds 600`
+  (HighPerformance and UltimatePerformance only; no PowerSaver). VBS/HVCI was
+  enabled, and EMON drivers were registered once with `sepreg -i`. No
+  `socwatch_WakeupAnalysis.csv` was produced for these runs.
+
+PassMark 10.2 and 11.1 scores are not strictly comparable (e.g. the 11.1 runs
+show lower Disk Mark but higher 2D/3D Marks with similar CPU Mark), so compare
+within a PassMark version first. Windows has no exposed
 per-core EPP/governor setting on this hardware (`powercfg` `PERFEPP`/`PERFBOOSTMODE`
 both return "Invalid Parameters"), so the only available lever is the whole
 power plan (`powercfg`), unlike Linux's separate profile + governor axes.
@@ -41,11 +52,13 @@ comparison point is needed.
 
 ## Results
 
-| Run | Power plan | CPU Mark | Memory Mark | PassMark Rating | Avg pkg power | Avg active freq | instructions/ref cycle |
-|---|---|---|---|---|---|---|---|
-| 20261103_213137 | HighPerformance | 34164 | 3722 | 6427.0 | 17.9 W | 3307 MHz | 1.01 |
-| 20261103_231839 | UltimatePerformance | 34356 | 3664 | 6315.2 | 17.6 W | 3297 MHz | 0.95 |
-| 20261103_233441 | PowerSaver | 33906 | 2966 | 5121.0 | 13.8 W | 2899 MHz | 0.78 |
+| Run | PassMark | Power plan | CPU Mark | Memory Mark | PassMark Rating | Avg pkg power | Avg active freq | instructions/ref cycle |
+|---|---|---|---|---|---|---|---|---|
+| 20261103_213137 | 10.2 | HighPerformance | 34164 | 3722 | 6427.0 | 17.9 W | 3307 MHz | 1.01 |
+| 20261103_231839 | 10.2 | UltimatePerformance | 34356 | 3664 | 6315.2 | 17.6 W | 3297 MHz | 0.95 |
+| 20261103_233441 | 10.2 | PowerSaver | 33906 | 2966 | 5121.0 | 13.8 W | 2899 MHz | 0.78 |
+| 20261110_191135 | 11.1 | UltimatePerformance | 33864 | 3725 | 6638.5 | 16.2 W | 3337 MHz | 0.85 |
+| 20261110_192426 | 11.1 | HighPerformance | 33823 | 3727 | 6613.9 | 16.4 W | 3335 MHz | 0.82 |
 
 \* `HighPerformance`'s collection window ran longer than the other two (same
 `-TestDuration Short -TestIterations 3` settings) - its scores/averages are
@@ -60,6 +73,10 @@ but the sample counts aren't directly comparable across rows.
   setting - Windows power plans mostly change ACPI platform-profile-style
   limits, and `UltimatePerformance` vs `HighPerformance` barely differ in
   practice on this hardware.
+- **PassMark 11.1 re-run confirms the tie**: UltimatePerformance vs HighPerformance
+  differ by about 0.1% on CPU Mark and about 0.4% on Rating (6638.5 vs 6613.9),
+  with package power within 1%. Disk Mark is the largest 10.2 vs 11.1 difference
+  (about 32k on 11.1 vs 36-42k on 10.2), so treat cross-version Rating gaps with caution.
 - **PowerSaver's hit to raw CPU throughput is small**: CPU Mark is only about
   0.8% lower than HighPerformance, at about 23% less package power (13.8 W vs
   17.9 W) and about 12% lower average active frequency. This is a much

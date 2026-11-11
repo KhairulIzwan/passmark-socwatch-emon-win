@@ -1,0 +1,59 @@
+PassMark(R) PerformanceTest 11.1 (https://www.passmark.com)
+Results generated on:  Tuesday, November 10, 2026
+Number of processes used for CPU Tests: 16
+
+
+Benchmark Results
+
+Test Name: This Computer
+Integer Math (MOps./Sec.) : 86972.7 (80%)
+Floating Point Math (MOps./Sec.) : 112869.1 (97%)
+Prime Numbers (Million Primes/Sec.) : 366.1 (99%)
+Extended Instructions (SSE) (Mill. Matrices/Sec.) : 32024.4 (92%)
+Compression (KBytes/Sec.) : 291921.8 (75%)
+Encryption (MBytes/Sec.) : 25358.3 (90%)
+Physics (Frames/Sec.) : 2790.8 (97%)
+Sorting (Thousand Strings/Sec.) : 36605.7 (80%)
+CPU Single Threaded (MOps./Sec.) : 4465.7 (99%)
+Cross-platform Mark (Composite average) : 72134.8 (91%)
+Gaming Score (Composite average) : 5123.8 (-1%)
+Simple Vectors (Thousand Vectors/Sec.) : 11.1 (40%)
+Fonts and Text (Ops./Sec.) : 369.9 (97%)
+Windows Interface (Ops./Sec.) : 47.4 (46%)
+Image Filters (Filters/Sec) : 1778.4 (63%)
+Image Rendering (Thousand Images/Sec) : 123.4 (50%)
+Direct 2D (Frames/Sec.) : 76.2 (92%)
+PDF Rendering (Ops./Sec.) : 54.7 (68%)
+Direct 2D - SVG (Frames/Sec.) : 102.5 (93%)
+DirectX 9 (Frames/Sec.) : 68.6 (37%)
+DirectX 10 (Frames/Sec.) : 23.5 (30%)
+DirectX 11 (Frames/Sec.) : 39.2 (29%)
+DirectX 12 (Frames/Sec.) : 19.1 (31%)
+GPU Compute (Ops./Sec.) : 1881.9 (33%)
+Database Operations (KOps./Sec.) : 12703.0 (99%)
+Memory Read Cached (MBytes/Sec.) : 35943.1 (90%)
+Memory Read Uncached (MBytes/Sec.) : 20045.7 (81%)
+Memory Write (MBytes/Sec.) : 16179.1 (87%)
+Available RAM (Megabytes) : 54225.3 (93%)
+Memory Latency (ns (lower is better)) : 41.2 (44%)
+Memory Threaded (MBytes/Sec.) : 89706.9 (99%)
+Disk Sequential Read (MBytes/Sec.) : 6726.2 (98%)
+Disk Sequential Write (MBytes/Sec.) : 2515.6 (82%)
+IOPS 32KQD20 (MBytes/Sec.) : 1376.0 (72%)
+IOPS 4KQD1 (MBytes/Sec.) : 103.0 (92%)
+CPU Mark (Composite average) : 33864.4 (90%)
+2D Graphics Mark (Composite average) : 849.4 (67%)
+Memory Mark (Composite average) : 3724.6 (94%)
+Disk Mark (Composite average) : 32162.1 (89%)
+3D Graphics Mark (Composite average) : 4804.5 (37%)
+PassMark Rating (Composite average) : 6638.5 (72%)
+
+Operating System: Windows 11 Enterprise LTSB/LTSC build 26100 (64-bit)
+CPU Type: Intel Core Ultra 7 366H
+Number of CPUs: 1
+Cores per CPU: 16
+Hyperthreading: Disabled
+Motherboard: PTL-UH DDR5 Embedded CRB
+Memory: 64GB SK Hynix DDR5 SDRAM
+Videocard: Intel(R) Graphics
+Hard Drive: Sabrent SB-RKT4P-500 (500GB)

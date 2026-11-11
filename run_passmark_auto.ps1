@@ -33,6 +33,11 @@ param(
     [string]$TestDuration  = "Short", # Short | Medium | Long | VeryLong
     [int]$TestIterations   = 3,
     [switch]$ConfirmBeforeRun,         # if set, asks Y/N before starting the benchmark; default is fully automatic
+    [string]$PassMarkExe   = "C:\Program Files\PerformanceTest\PerformanceTest64.exe",
+    [string]$PerfResDir    = "",       # default: <Documents>\PassMark\PerformanceTest<major version of the exe>
+    [int]$CmdPreferences   = 40040,    # Edit > Preferences...   (WM_COMMAND id, verified on v10.2 only)
+    [int]$CmdRunAll        = 40079,    # Tests > Run All Tests   (verified on v10.2 only)
+    [int]$CmdSaveText      = 40083,    # File > Save results as text (verified on v10.2 only)
     [switch]$Help                      # show usage and exit
 )
 
@@ -49,6 +54,10 @@ PARAMETERS:
   -TestDuration      Short | Medium | Long | VeryLong   (default: Short)
   -TestIterations    Number of repeats per sub-test     (default: 3)
   -ConfirmBeforeRun  Ask Y/N before starting the benchmark (default: fully automatic)
+  -PassMarkExe       Path to PerformanceTest64.exe
+  -PerfResDir        Folder PassMark exports PerfRes.txt to (default: auto from exe major version)
+  -CmdPreferences / -CmdRunAll / -CmdSaveText
+                     Menu WM_COMMAND ids (defaults are for v10.2; use probe_menu.ps1 on other versions)
   -Help              Show this help and exit
 
 EXAMPLES:
@@ -60,6 +69,11 @@ Full details: Get-Help .\run_passmark_auto.ps1 -Full   (or see README.md)
 }
 
 $ErrorActionPreference = "Stop"
+if (-not (Test-Path $PassMarkExe)) { throw "PassMark executable not found: $PassMarkExe (use -PassMarkExe)" }
+$pmMajor = (Get-Item $PassMarkExe).VersionInfo.ProductMajorPart
+if (-not $PerfResDir) { $PerfResDir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "PassMark\PerformanceTest$pmMajor" }
+Write-Host "PassMark v$pmMajor ($PassMarkExe); results dir: $PerfResDir" -ForegroundColor Cyan
+if ($pmMajor -notin 10, 11) { Write-Host "[WARN] Menu command ids are only verified on v10.2 and v11.1. Run probe_menu.ps1 and pass -CmdPreferences/-CmdRunAll/-CmdSaveText if they differ." -ForegroundColor Yellow }
 $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $resultsDir = Join-Path $PSScriptRoot "Results\$ts"
 New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
@@ -167,7 +181,7 @@ $pm = Get-Process PerformanceTest64 -ErrorAction SilentlyContinue
 $coldLaunch = $false
 if (-not $pm) {
     $coldLaunch = $true
-    Start-Process -FilePath "C:\Program Files\PerformanceTest\PerformanceTest64.exe" -WorkingDirectory "C:\Program Files\PerformanceTest"
+    Start-Process -FilePath $PassMarkExe -WorkingDirectory (Split-Path $PassMarkExe)
     Write-Host "  Cold launch detected - waiting for first-time initialization/system check (up to 60s)..."
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Seconds 1
@@ -227,7 +241,7 @@ for ($a = 1; $a -le $prefAttempts; $a++) {
     if ($dismissed -gt 0) { Write-Host "  [DEBUG] Auto-dismissed $dismissed Warning popup(s)."; Start-Sleep -Milliseconds 300 }
     [Native.PM]::SetForegroundWindow($hwnd) | Out-Null
     Start-Sleep -Milliseconds 300
-    [Native.PM]::PostMessage($hwnd, 0x0111, [IntPtr]40040, [IntPtr]::Zero) | Out-Null  # Edit > Preferences...
+    [Native.PM]::PostMessage($hwnd, 0x0111, [IntPtr]$CmdPreferences, [IntPtr]::Zero) | Out-Null  # Edit > Preferences...
     $prefDlg = Wait-ForDialog $pm.Id "^Edit Preferences$" 3000
     if ($prefDlg -ne [IntPtr]::Zero) { break }
     Write-Host "  [DEBUG] Preferences dialog not up yet (attempt $a/$prefAttempts) - app may still be initializing, retrying..."
@@ -252,8 +266,8 @@ Write-Host "  [DEBUG] Preferences applied (duration=$TestDuration, iterations=$T
 Write-Host "`n[3/7] Triggering 'Run All Tests' (same as clicking 'Run Benchmark')..." -ForegroundColor Yellow
 [Native.PM]::SetForegroundWindow($hwnd) | Out-Null
 Start-Sleep -Milliseconds 300
-$postOk = [Native.PM]::PostMessage($hwnd, 0x0111, [IntPtr]40079, [IntPtr]::Zero)  # Tests > Run All Tests
-Write-Host "  [DEBUG] PostMessage(WM_COMMAND, 40079) result: $postOk"
+$postOk = [Native.PM]::PostMessage($hwnd, 0x0111, [IntPtr]$CmdRunAll, [IntPtr]::Zero)  # Tests > Run All Tests
+Write-Host "  [DEBUG] PostMessage(WM_COMMAND, $CmdRunAll) result: $postOk"
 
 $confirmDlg = Wait-ForDialog $pm.Id "^Run all benchmark tests\?$" 5000
 if ($confirmDlg -eq [IntPtr]::Zero) {
@@ -344,7 +358,7 @@ Write-Host "  Closed $closedCount summary dialog(s)."
 
 # ---------- Step 6: auto-export results (with retry + freshness verification) ----------
 Write-Host "`n[6/7] Triggering 'Save results as text' export..." -ForegroundColor Yellow
-$perfRes = "C:\Users\Local_Admin\Documents\PassMark\PerformanceTest10\PerfRes.txt"
+$perfRes = Join-Path $PerfResDir "PerfRes.txt"
 $preRunTime = if (Test-Path $perfRes) { (Get-Item $perfRes).LastWriteTime } else { $null }
 
 $exportSucceeded = $false
@@ -353,7 +367,7 @@ for ($attempt = 1; $attempt -le 5 -and -not $exportSucceeded; $attempt++) {
     $hwnd = $pm.MainWindowHandle
     [Native.PM]::SetForegroundWindow($hwnd) | Out-Null
     Start-Sleep -Milliseconds 300
-    [Native.PM]::PostMessage($hwnd, 0x0111, [IntPtr]40083, [IntPtr]::Zero) | Out-Null  # WM_COMMAND, File > Save results as text
+    [Native.PM]::PostMessage($hwnd, 0x0111, [IntPtr]$CmdSaveText, [IntPtr]::Zero) | Out-Null  # WM_COMMAND, File > Save results as text
 
     $dlgHwnd = Wait-ForDialog $pm.Id "Save" 10000
 

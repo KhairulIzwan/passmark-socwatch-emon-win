@@ -166,6 +166,23 @@ def collect_runs(root: Path) -> tuple[pd.DataFrame, dict]:
     return pd.DataFrame(rows).set_index("run"), sys_info
 
 
+def tool_versions(run_dir: Path) -> str:
+    pm = sw = em = "n/a"
+    f = run_dir / "PassMark_PerfRes.txt"
+    if f.exists():
+        m = re.search(r"PerformanceTest\s+([\d.]+)", f.read_text(encoding="utf-8", errors="ignore")[:300])
+        pm = m.group(1) if m else pm
+    f = run_dir / "socwatch.csv"
+    if f.exists():
+        m = re.search(r"SoC Watch.*?Version\s+(20\d\d\.\d+\.\d+)", f.read_text(encoding="utf-8", errors="ignore")[:3000])
+        sw = m.group(1) if m else sw
+    f = run_dir / "emon.csv"
+    if f.exists():
+        m = re.search(r"NDA V(\d+\.\d+)", f.read_text(encoding="utf-8", errors="ignore")[:3000])
+        em = f"V{m.group(1)}" if m else em
+    return f"{pm} | {sw} | {em}"
+
+
 def main():
     root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
         r"C:\Users\Local_Admin\Desktop\passmark-socwatch-emon-win\Results")
@@ -297,6 +314,14 @@ def main():
             md.append(f"- **Power plan (during run)**: {df['power_plan'].dropna().iloc[0]}\n")
         md.append("\n")
 
+    md.append("## Tool Versions per Run\n")
+    md.append("| Run | Power plan | PassMark | SoC Watch | EMON |\n|---|---|---|---|---|\n")
+    for idx in df.index:
+        plan = df.loc[idx, "power_plan"] if "power_plan" in df.columns else ""
+        md.append(f"| {idx} | {plan} | {tool_versions(root / idx)} |\n")
+    md.append("\nRuns on different PassMark major versions are **not strictly comparable** "
+              "(sub-test workloads and baselines differ); compare within a version first.\n\n")
+
     md.append("## Methodology\n")
     md.append(
         "- **PassMark** supplies one composite/sub-test score per run (`PassMark_PerfRes.txt`), "
@@ -313,15 +338,15 @@ def main():
         "between score metrics and telemetry metrics — this is the only valid level for score "
         "correlation since PassMark itself has no internal time resolution.\n"
         "- ⚠️ **Caveat**: with "
-        f"**n={len(df)}** runs on a single SKU/system (one run per power plan), these are "
+        f"**n={len(df)}** runs on a single SKU/system (1-2 runs per power plan), these are "
         "exploratory correlations, not statistically robust conclusions:\n"
         "  - Each PassMark score is itself already an average across the run's internal "
-        "**3 iterations**, so the *score* values have reasonably low pure benchmark-noise.\n"
+        "**1-3 iterations** (3 for the PassMark 10.2 runs, 1 for the PassMark 11.1 runs), so the *score* values have reasonably low pure benchmark-noise.\n"
         "  - However, **telemetry (SoCWatch/EMON) was captured once per run**, not separately "
         "per iteration — so we don't know iteration-to-iteration telemetry variance (e.g., "
-        "thermal ramp across the 3 iterations), and runs were executed back-to-back without "
+        "thermal ramp across the iterations), and runs were executed back-to-back without "
         "controlling for thermal/background-state carryover between power-plan switches.\n"
-        "  - With only n=4 distinct conditions, a single atypical plan can dominate the fit — "
+        "  - With only a handful of distinct conditions, a single atypical plan can dominate the fit — "
         "p<0.05 here should be read as a credible **directional** signal worth acting on, "
         "not a finalized regression. Confirming with 1-2 repeat runs per plan (especially for "
         "any plan that looks like an outlier) would turn this from directional into robust.\n"

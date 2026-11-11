@@ -1,6 +1,6 @@
 # PassMark + SocWatch + EMON Automation (Windows)
 
-Fully automated Windows PowerShell scripts that drive **PassMark PerformanceTest 10.2**
+Fully automated Windows PowerShell scripts that drive **PassMark PerformanceTest 10.2 / 11.1**
 end-to-end (launch, configure, run, export results) using raw Win32 message automation
 (`PostMessage`/`SendMessage` against menu and dialog control IDs), since PassMark's UI is
 custom-drawn and not exposed via standard UI Automation.
@@ -16,10 +16,49 @@ Two scripts are provided:
 
 - Windows, run from an **elevated, interactive** PowerShell session (not SYSTEM/session 0 -
   the scripts post raw window messages and need a real desktop/console).
-- PassMark PerformanceTest 10.2 installed.
+- PassMark PerformanceTest 10.2 or 11.1 installed (both verified; the report archive notes which version each run used).
 - For `run_combined_test.ps1` only:
   - Intel EMON / SEP (`C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd` must exist).
   - Intel SoC Watch (`socwatch.exe` on `PATH` or in `C:\Program Files\SocWatch`).
+
+### Getting and installing EMON and SocWatch (combined script only)
+
+Both are portable zips from the internal telemetry share (Intel network/VPN required; no
+installer - copy into place from an **elevated** PowerShell). Newer builds may exist in the
+same folders - check there first.
+
+| Tool | Download |
+|---|---|
+| EMON 11.61 | `http://10.221.202.144/OOC_OnePnP/Telemetry/Windows/EMON/emon_nda_11.61_win_08201055109fdd6c1.zip` |
+| SocWatch 2026.6.0 | `http://10.221.202.144/OOC_OnePnP/Telemetry/Windows/SocWatch/2026-11-10/socwatch_windows_INTERNAL_v2026.6.0.zip` |
+
+```powershell
+$t = "$env:USERPROFILE\Downloads\telemetry"; New-Item -ItemType Directory $t -Force | Out-Null
+# 1. Download (add -Proxy $null if the system proxy blocks the internal host)
+Invoke-WebRequest "<EMON url>" -OutFile "$t\emon.zip"
+Invoke-WebRequest "<SocWatch url>" -OutFile "$t\socwatch.zip"
+Expand-Archive "$t\emon.zip" "$t\emon" -Force
+Expand-Archive "$t\socwatch.zip" "$t\socwatch" -Force
+
+# 2. Install to the paths the combined script expects (elevated)
+New-Item -ItemType Directory "C:\Program Files (x86)\IntelSWTools" -Force | Out-Null
+Copy-Item (Get-ChildItem "$t\emon" -Directory | Select -First 1).FullName "C:\Program Files (x86)\IntelSWTools\emon" -Recurse
+$sw = (Get-ChildItem "$t\socwatch" -Directory | Select -First 1).FullName
+Copy-Item "$sw\64" "C:\Program Files\SocWatch" -Recurse
+
+# 3. Register + start the EMON sampling drivers (one-time, elevated; persists across reboots)
+cmd /c 'call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && sepreg -i -v'
+# 4. Verify - must print "SEP Driver Version: 5.61" / "PAX Driver Version" (not "Error retrieving")
+cmd /c 'call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && emon -v'
+```
+
+If `sepreg -i` reports the driver is not properly signed or fails to start, Memory Integrity
+(HVCI, Windows Security > Device security > Core isolation) is likely blocking it - turn it off
+and reboot. Note: with Hyper-V + VBS enabled EMON still works but some core/uncore PMU event
+counts can read 0 (EMON release notes).
+
+Only run `emon`/`socwatch` through the scripts (see Safety notes). SocWatch loads its driver
+on first collection and needs admin.
 
 ## Usage
 
@@ -34,6 +73,11 @@ Two scripts are provided:
 Common parameters:
 - `-TestDuration` : `Short | Medium | Long | VeryLong` (PassMark preference)
 - `-TestIterations` : number of repeats per sub-test
+- `-PassMarkExe`, `-PerfResDir` : PassMark executable and export folder. By default the folder is
+  `<Documents>\PassMark\PerformanceTest<major version of the exe>` (e.g. `PerformanceTest11`).
+- `-CmdPreferences`, `-CmdRunAll`, `-CmdSaveText` : menu `WM_COMMAND` ids (defaults 40040/40079/40083
+  are verified on v10.2 and v11.1). For other versions run `.\probe_menu.ps1` in an interactive
+  window to list the real ids and pass them in.
 - `-ConfirmBeforeRun` : ask Y/N before starting the benchmark (default is fully automatic)
 - `-SocWatchSafetyCapSeconds` (combined script only, default 900): a hard safety ceiling for
   SocWatch only - **not** the expected run length. In normal operation SocWatch is stopped
@@ -45,6 +89,7 @@ Common parameters:
   net). `Balanced` (Windows default) throttles for power savings and can make benchmark runs
   inconsistent run-to-run; `HighPerformance`/`UltimatePerformance` remove that throttling.
   `UltimatePerformance` is auto-unhidden via `powercfg -duplicatescheme` if not already present.
+  `HighPerformance` is created the same way on systems that don't list it (e.g. Balanced-only).
 
 Results are written to a timestamped folder inside the project itself, e.g.
 `passmark-socwatch-emon-win\Results\<yyyyMMdd_HHmmss>\` (next to the script, via
@@ -127,7 +172,9 @@ longer needs this trick since it is stopped via the official `emon -stop` comman
 
 [`reports/telemetry_correlation_report/Core5_223PE/TELEMETRY_CORRELATION_REPORT.md`](reports/telemetry_correlation_report/Core5_223PE/TELEMETRY_CORRELATION_REPORT.md) and [`reports/telemetry_correlation_report/CoreUltra7_366H/TELEMETRY_CORRELATION_REPORT.md`](reports/telemetry_correlation_report/CoreUltra7_366H/TELEMETRY_CORRELATION_REPORT.md)
 is a worked example (generated by the analysis scripts) correlating PassMark scores against
-SocWatch/EMON telemetry across 3 runs on 3 different power plans - test-bed config, per-run
+SocWatch/EMON telemetry across 5 runs on 3 different power plans (CoreUltra7_366H: 3 runs on
+PassMark 10.2 plus 2 runs on PassMark 11.1, labeled per run in a "Tool Versions per Run" table) -
+test-bed config, per-run
 plots, cross-run comparison, and correlation findings. Raw per-run telemetry (`Results/`) is
 git-ignored as usual; this report + its plots are committed since they're the shareable output.
 

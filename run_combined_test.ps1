@@ -57,6 +57,11 @@ param(
     [string]$TestDuration  = "Short", # Short | Medium | Long | VeryLong
     [int]$TestIterations   = 3,
     [switch]$ConfirmBeforeRun,         # if set, asks Y/N before starting the benchmark; default is fully automatic
+    [string]$PassMarkExe   = "C:\Program Files\PerformanceTest\PerformanceTest64.exe",
+    [string]$PerfResDir    = "",       # default: <Documents>\PassMark\PerformanceTest<major version of the exe>
+    [int]$CmdPreferences   = 40040,    # Edit > Preferences...   (WM_COMMAND id, verified on v10.2 only)
+    [int]$CmdRunAll        = 40079,    # Tests > Run All Tests   (verified on v10.2 only)
+    [int]$CmdSaveText      = 40083,    # File > Save results as text (verified on v10.2 only)
     [ValidateSet("AsIs","Balanced","HighPerformance","UltimatePerformance","PowerSaver")]
     [string]$PowerPlan = "HighPerformance",  # power plan to use DURING the benchmark; original plan is restored afterward. "AsIs" = don't touch it.
     [switch]$Help                      # show usage (incl. available power plans on this machine) and exit
@@ -95,6 +100,11 @@ Full details: Get-Help .\run_combined_test.ps1 -Full   (or see README.md)
 }
 
 $ErrorActionPreference = "Stop"
+if (-not (Test-Path $PassMarkExe)) { throw "PassMark executable not found: $PassMarkExe (use -PassMarkExe)" }
+$pmMajor = (Get-Item $PassMarkExe).VersionInfo.ProductMajorPart
+if (-not $PerfResDir) { $PerfResDir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "PassMark\PerformanceTest$pmMajor" }
+Write-Host "PassMark v$pmMajor ($PassMarkExe); results dir: $PerfResDir" -ForegroundColor Cyan
+if ($pmMajor -notin 10, 11) { Write-Host "[WARN] Menu command ids are only verified on v10.2 and v11.1. Run probe_menu.ps1 and pass -CmdPreferences/-CmdRunAll/-CmdSaveText if they differ." -ForegroundColor Yellow }
 $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $resultsDir = Join-Path $PSScriptRoot "Results\$ts"
 New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
@@ -126,14 +136,16 @@ $appliedPowerPlanName = "AsIs (left unchanged)"
 if ($PowerPlan -ne "AsIs" -and $originalScheme) {
     try {
         $targetGuid = $PowerPlanGuids[$PowerPlan]
-        if ($PowerPlan -eq "UltimatePerformance") {
-            # The hidden source GUID (e9a42b02-...) can NEVER be set active directly - Windows
-            # rejects it ("Attempted to write to unsupported setting"). -duplicatescheme creates
-            # a NEW, independent, settable GUID for the visible copy and that's what must be used.
-            # If a visible "Ultimate Performance" copy already exists (from a prior run), reuse its
-            # GUID instead of creating yet another duplicate every time.
+        if ($PowerPlan -in "UltimatePerformance", "HighPerformance") {
+            # Hidden/absent source GUIDs (e.g. Ultimate e9a42b02-..., or High performance on systems that
+            # only list Balanced) can NEVER be set active directly - Windows rejects them
+            # ("Attempted to write to unsupported setting"). -duplicatescheme creates a NEW,
+            # independent, settable GUID for the visible copy and that's what must be used.
+            # If a visible copy already exists (from a prior run or natively), reuse its GUID
+            # instead of creating yet another duplicate every time.
+            $planName = if ($PowerPlan -eq "UltimatePerformance") { "Ultimate Performance" } else { "High performance" }
             $listOut = (powercfg /list) -join "`n"
-            if ($listOut -match "Power Scheme GUID:\s*([0-9a-fA-F-]+)\s*\(Ultimate Performance\)") {
+            if ($listOut -match "Power Scheme GUID:\s*([0-9a-fA-F-]+)\s*\($planName\)") {
                 $targetGuid = $Matches[1]
             } else {
                 $dupOut = (powercfg -duplicatescheme $targetGuid) -join "`n"
@@ -351,7 +363,7 @@ $pm = Get-Process PerformanceTest64 -ErrorAction SilentlyContinue
 $coldLaunch = $false
 if (-not $pm) {
     $coldLaunch = $true
-    Start-Process -FilePath "C:\Program Files\PerformanceTest\PerformanceTest64.exe" -WorkingDirectory "C:\Program Files\PerformanceTest"
+    Start-Process -FilePath $PassMarkExe -WorkingDirectory (Split-Path $PassMarkExe)
     Write-Host "  Cold launch detected - waiting for first-time initialization/system check (up to 60s)..."
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Seconds 1
@@ -402,7 +414,7 @@ for ($a = 1; $a -le $prefAttempts; $a++) {
     if ($dismissed -gt 0) { Write-Host "  [DEBUG] Auto-dismissed $dismissed Warning popup(s)."; Start-Sleep -Milliseconds 300 }
     [Native.Combined]::SetForegroundWindow($hwnd) | Out-Null
     Start-Sleep -Milliseconds 300
-    [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]40040, [IntPtr]::Zero) | Out-Null  # Edit > Preferences...
+    [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]$CmdPreferences, [IntPtr]::Zero) | Out-Null  # Edit > Preferences...
     $prefDlg = Wait-ForDialog $pm.Id "^Edit Preferences$" 3000
     if ($prefDlg -ne [IntPtr]::Zero) { break }
     Write-Host "  [DEBUG] Preferences dialog not up yet (attempt $a/$prefAttempts) - app may still be initializing, retrying..."
@@ -426,8 +438,8 @@ Write-Host "  Preferences applied."
 Write-Host "`n[3/7] Triggering 'Run All Tests' (same as clicking 'Run Benchmark')..." -ForegroundColor Yellow
 [Native.Combined]::SetForegroundWindow($hwnd) | Out-Null
 Start-Sleep -Milliseconds 300
-$postOk = [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]40079, [IntPtr]::Zero)  # Tests > Run All Tests
-Write-Host "  [DEBUG] PostMessage(WM_COMMAND, 40079) result: $postOk"
+$postOk = [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]$CmdRunAll, [IntPtr]::Zero)  # Tests > Run All Tests
+Write-Host "  [DEBUG] PostMessage(WM_COMMAND, $CmdRunAll) result: $postOk"
 
 $confirmDlg = Wait-ForDialog $pm.Id "^Run all benchmark tests\?$" 5000
 if ($confirmDlg -eq [IntPtr]::Zero) {
@@ -469,7 +481,8 @@ Write-Host "  Benchmark started."
 Write-Host "`n[4/7] Starting EMON + SocWatch telemetry (will run exactly as long as the benchmark does)..." -ForegroundColor Yellow
 
 $emonCsv = Join-Path $resultsDir "emon.csv"
-$emonArgs = '/c call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && emon -nb -C "INST_RETIRED.ANY, CPU_CLK_UNHALTED.REF_TSC, LONGEST_LAT_CACHE.MISS" -t1 -l0 -f "' + $emonCsv + '"'
+$emonLog = Join-Path $resultsDir "emon_start.log"
+$emonArgs = '/c call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && emon -nb -C "INST_RETIRED.ANY, CPU_CLK_UNHALTED.REF_TSC, LONGEST_LAT_CACHE.MISS" -t1 -l0 -f "' + $emonCsv + '" > "' + $emonLog + '" 2>&1'
 $emonProc = Start-Process -FilePath "cmd.exe" -ArgumentList $emonArgs -WorkingDirectory "C:\Program Files (x86)\IntelSWTools\emon" -PassThru -WindowStyle Minimized
 $emonProc.WaitForExit(15000) | Out-Null   # -nb returns control quickly once the background collector is launched
 
@@ -483,6 +496,10 @@ $socProc = Start-Process -FilePath "C:\Program Files\SocWatch\socwatch.exe" -Arg
 Start-Sleep -Seconds 2
 $emonRunning = Get-Process -Name "emon" -ErrorAction SilentlyContinue
 Write-Host "  EMON PID=$(if($emonRunning){$emonRunning.Id}else{'(not detected)'})  SocWatch PID=$($socProc.Id)"
+if (-not $emonRunning) {
+    Write-Host "  [WARN] EMON did not start - continuing with SocWatch only. Start output ($emonLog):" -ForegroundColor Red
+    if (Test-Path $emonLog) { Get-Content $emonLog | ForEach-Object { Write-Host "    $_" -ForegroundColor Red } }
+}
 Write-Host "  Monitoring CPU usage + active sub-test to auto-detect completion..."
 
 # ---------- Step 5: detect completion via the REAL "benchmark complete" summary dialog ----------
@@ -529,7 +546,11 @@ if (-not $reallyDone) { Write-Host "  [WARN] Safety timeout reached without seei
 # EMON: stopped via the official "emon -stop" command (blocks until the collector flushes/exits).
 # SocWatch: stopped via a real Ctrl-C signal (no -p-launchable workload to tie its lifetime to).
 Write-Host "`nStopping telemetry (EMON: official -stop, SocWatch: graceful Ctrl-C)..." -ForegroundColor Yellow
+$prevEap = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+# Native stderr must not become a terminating error (global ErrorActionPreference is Stop) - that
+# would abort the script before SocWatch is stopped and PassMark results are exported.
 $emonStopOut = cmd /c 'call "C:\Program Files (x86)\IntelSWTools\emon\sep_vars.cmd" noshell && emon -stop' 2>&1
+$ErrorActionPreference = $prevEap
 Write-Host "  EMON stop: $($emonStopOut -join ' ')"
 if (-not $socProc.HasExited) {
     $ok = Send-GracefulCtrlC $socProc.Id
@@ -574,7 +595,7 @@ Write-Host "`n[6/7] Triggering 'Save results as text' export..." -ForegroundColo
 # in this folder (observed directly: a manual Export produced "PassMark_PerfRes.txt" instead of the
 # usual "PerfRes.txt") - so track both candidates and pick whichever one actually got refreshed,
 # rather than hardcoding a single expected filename.
-$perfResDir = "C:\Users\Local_Admin\Documents\PassMark\PerformanceTest10"
+$perfResDir = $PerfResDir
 $perfResCandidates = @((Join-Path $perfResDir "PerfRes.txt"), (Join-Path $perfResDir "PassMark_PerfRes.txt"))
 $perfRes = $perfResCandidates[0]
 $preRunTime = ($perfResCandidates | Where-Object { Test-Path $_ } | ForEach-Object { (Get-Item $_).LastWriteTime } | Sort-Object -Descending | Select-Object -First 1)
@@ -585,7 +606,7 @@ for ($attempt = 1; $attempt -le 5 -and -not $exportSucceeded; $attempt++) {
     $hwnd = $pm.MainWindowHandle
     [Native.Combined]::SetForegroundWindow($hwnd) | Out-Null
     Start-Sleep -Milliseconds 300
-    [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]40083, [IntPtr]::Zero) | Out-Null  # WM_COMMAND, File > Save results as text
+    [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]$CmdSaveText, [IntPtr]::Zero) | Out-Null  # WM_COMMAND, File > Save results as text
 
     $dlgHwnd = [IntPtr]::Zero
     for ($try = 0; $try -lt 100; $try++) {
