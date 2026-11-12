@@ -70,7 +70,16 @@ Read Cached, `ME_READ_L` = Read Uncached).
 | **Memory Mark** | | **3,724.6** | **3,759.0** | **+0.9%** |
 
 Memory is within about 3% on four of five tests; only Read - Uncached differs
-more (+8.3%). Ubuntu also reports Available RAM and large-block values
+more (+8.3%).
+
+**Order:** the five compared tests run in the same relative order on both OSes:
+Read - Cached, Read - Uncached, Write, Latency, Threaded. Ubuntu's results file
+(whose CPU order matches its console log) also runs Available RAM (`ME_ALLOC_S`)
+first and a large-block test (`ME_LARGE`) between Write and Latency. Windows' order is
+its listing order and the Windows file has no entries for those two, so
+the Windows order is inferred, not recorded. Unlike the CPU suite, no
+tests swap positions, so run order is unlikely to explain any Memory difference.
+Ubuntu also reports Available RAM and large-block values
 (`ME_ALLOC_S`, `ME_LARGE`) that this Windows results file does not list, so
 they are not compared. The Memory Mark is a composite of the sub-tests, so these
 differences stay small in the total.
