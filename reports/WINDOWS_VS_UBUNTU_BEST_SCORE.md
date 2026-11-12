@@ -108,7 +108,7 @@ ramp/tail seconds removed; 1 to 5 seconds per test, so indicative):
 | Compression | -5.0% | 3.79 / 3.75 | 5.28 / 2.99 | -43.4% |
 | Encryption | -1.7% | 3.79 / 3.80 | 1.81 / 2.32 | +28.2% |
 | Physics | +17.2% | 3.79 / 3.80 | 2.15 / 2.47 | +14.9% |
-| Sorting | +29.2% | 3.79 / 3.18 (all cores) | 1.81 / 4.01 | +121.5% |
+| Sorting | +29.2% | 3.79 / 3.18 | 1.81 / 4.01 | +121.5% |
 
 What it shows:
 
@@ -129,6 +129,21 @@ What it shows:
   3.8 GHz. Sorting still scores +29%.
 - **Ubuntu SSE** ends with a long tail where E and LPE cores finish and clock
   down before the P-cores, so the last seconds use few cores.
+
+## SocWatch whole-run power summary
+
+The archived SocWatch CSVs only hold whole-run summaries, with no per-second
+power, so there is no per-test power plot.
+
+| | Windows | Ubuntu |
+|---|---|---|
+| Average package power | 16.2 W | 24.5 W |
+| Capture length | about 411 s (whole suite) | about 95 s (CPU and Memory) |
+| PBM-PL1 samples | 3.0% | 24.5% |
+
+The power averages are not comparable: the Windows capture also covers the
+low-power 2D, 3D and Disk tests. The PBM-PL1 share is higher on Ubuntu, but with
+no time series it cannot be tied to a specific sub-test.
 
 ## Limits
 
