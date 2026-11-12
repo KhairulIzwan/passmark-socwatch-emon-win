@@ -56,33 +56,30 @@ runs last).
 
 ## Memory sub-tests
 
-Same two runs as the best score above. Ubuntu's results file uses short keys;
-the mapping to PassMark's names is inferred from the key names and value
-magnitudes (for example `ME_LARGE` is about 55,000, matching Available RAM in
-MB on this 64 GB system).
+Ubuntu's results file uses short keys; the mapping to PassMark's names is
+inferred from the key names and value magnitudes (for example `ME_LARGE` is
+about 55,000, matching Available RAM in MB on this 64 GB system).
 
-| Test | Unit | Windows | Ubuntu | Ubuntu vs. Windows |
-|---|---|---:|---:|---:|
-| Database Operations (`ME_ALLOC_S`) | KOps/s | 12,703 | 9,619 | -24.3% |
-| Read - Cached (`ME_READ_S`) | MB/s | 35,943 | 34,742 | -3.3% |
-| Read - Uncached (`ME_READ_L`) | MB/s | 20,046 | 21,713 | +8.3% |
-| Write | MB/s | 16,179 | 16,306 | +0.8% |
-| Available RAM (`ME_LARGE`) | MB | 54,225 | 54,907 | +1.3% |
-| Latency | ns (lower is better) | 41.2 | 41.0 | 0.5% better |
-| Threaded | MB/s | 89,707 | 90,968 | +1.4% |
-| **Memory Mark** | | **3,724.6** | **3,759.0** | **+0.9%** |
+| Test | Unit | Windows order | Ubuntu order | Windows | Ubuntu | Ubuntu vs. Windows |
+|---|---|---:|---:|---:|---:|---:|
+| Database Operations (`ME_ALLOC_S`) | KOps/s | 1 | 1 | 12,703 | 9,619 | -24.3% |
+| Read - Cached (`ME_READ_S`) | MB/s | 2 | 2 | 35,943 | 34,742 | -3.3% |
+| Read - Uncached (`ME_READ_L`) | MB/s | 3 | 3 | 20,046 | 21,713 | +8.3% |
+| Write | MB/s | 4 | 4 | 16,179 | 16,306 | +0.8% |
+| Available RAM (`ME_LARGE`) | MB | 5 | 5 | 54,225 | 54,907 | +1.3% |
+| Latency | ns (lower is better) | 6 | 6 | 41.2 | 41.0 | 0.5% better |
+| Threaded | MB/s | 7 | 7 | 89,707 | 90,968 | +1.4% |
+| **Memory Mark** | | | | **3,724.6** | **3,759.0** | **+0.9%** |
 
-Six of seven tests are within about 3% (Read - Uncached +8.3%). Database
-Operations is the outlier at -24%, yet the Memory Mark is within 1%, so it
-evidently carries little weight in the composite (not verified against
-PassMark's formula).
-
-**Order:** all seven tests run in the same order on both OSes: Database
+**Order:** all seven tests are listed in the same order for both OSes: Database
 Operations, Read - Cached, Read - Uncached, Write, Available RAM, Latency,
-Threaded. Ubuntu's order is from its results file (its CPU order matches its
-console log); Windows' is the results-file listing order, so it is inferred,
-not recorded. No test swaps position, unlike the CPU suite, so run order is
-unlikely to explain the Memory differences.
+Threaded. Ubuntu's order is from its results file; Windows' is the exported
+listing order, so it is inferred, not recorded. No test swaps position, unlike
+the CPU suite, so run order is unlikely to explain the Memory differences.
+
+Database Operations is the outlier at -24%, yet the Memory Mark is within 1%,
+so it evidently carries little weight in the composite (not verified against
+PassMark's formula).
 ## SKU core topology
 
 Intel Core Ultra 7 366H (Panther Lake): 16 cores / 16 threads, no Hyper-Threading
