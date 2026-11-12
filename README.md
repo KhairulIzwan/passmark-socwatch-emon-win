@@ -91,6 +91,14 @@ Common parameters:
   `UltimatePerformance` is auto-unhidden via `powercfg -duplicatescheme` if not already present.
   `HighPerformance` is created the same way on systems that don't list it (e.g. Balanced-only).
 
+- `-Suite` (combined script only, default `All`): `All | CPU | Memory | CPUMemory`. Partial
+  suites start the PassMark menu item (Tests > CPU > All = 40001, Memory > All = 40038) and
+  end when its in-progress dialog disappears. Use `CPUMemory` to match the Linux `-r All`
+  coverage. Note `PassMark_PerfRes.txt` keeps stale 2D/3D/Disk lines from earlier runs.
+- `-MaxDetail` (combined script only): adds SocWatch `-m` and keeps the raw `.etl` files so a
+  per-interval trace can be exported afterwards:
+  `socwatch.exe -i <Results\run>\socwatch -r int -o <prefix>` (about 220 MB).
+
 Results are written to a timestamped folder inside the project itself, e.g.
 `passmark-socwatch-emon-win\Results\<yyyyMMdd_HHmmss>\` (next to the script, via
 `$PSScriptRoot`), containing `PassMark_PerfRes.txt`, `emon.csv`, `socwatch.csv`,

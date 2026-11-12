@@ -81,9 +81,12 @@ instead of 16. The OS and EMON still report all 16 cores online.
   lower and all 16 cores are active, but P-core IPC is about 27% lower. Why
   is not established.
 - **SSE** (-44.8%) and **Sorting** (+29.2%) differ most and swap positions in
-  the run order, so run order may contribute (for example, through where each
-  test falls relative to power-limit behavior). This is a hypothesis only.
-  Neither is a proven cause.
+  the run order. The power trace below shows why order matters here: both OSes
+  have PL2 = 65 W for a limited time, then PL1 = 25 W. Windows ran SSE (4th)
+  inside the 65 W period and Sorting (8th) after it; Ubuntu ran Sorting (4th)
+  inside it and SSE (9th, last) after it. This matches the direction of both
+  deltas, but Ubuntu has no per-second power trace to confirm it, so it stays a
+  hypothesis.
 
 ## EMON per-second view (CPU suite only)
 
@@ -130,20 +133,59 @@ What it shows:
 - **Ubuntu SSE** ends with a long tail where E and LPE cores finish and clock
   down before the P-cores, so the last seconds use few cores.
 
+## Power per sub-test (Windows CPU+Memory-only run)
+
+![Windows CPU+Memory power](windows_cpu_memory_power.png)
+
+To get a like-for-like power view, Windows was rerun on the same suites as
+Ubuntu (CPU and Memory, 1 iteration, Short, `UltimatePerformance`) with SocWatch
+`-m` and a per-interval trace exported from the raw `.etl`. Archived in
+[`cpu_memory_only/`](cpu_memory_only/CoreUltra7_366H/20261111_191425/);
+script: [plot_windows_power.py](plot_windows_power.py). This run scored CPU Mark
+33,693.5 and Memory Mark 3,730.0, within 0.5% of the best Windows run above.
+(Its `PassMark_PerfRes.txt` also lists 2D, 3D and Disk values; those are carried
+over from earlier runs, not measured here.)
+
+Configured limits (SocWatch, same on both OSes): **PL1 = 25 W, PL2 = 65 W,
+Tau = 28 s**. Average package power by test window (approximate windows):
+
+| Window | Avg W | PBM-PL1 active |
+|---|---:|---:|
+| Float | 43.7 | 0% |
+| Prime | 45.6 | 0% |
+| SSE | 37.5 | 0% |
+| Compression | 50.8 | 22% |
+| Encryption | 24.9 | 74% |
+| Physics | 23.0 | 61% |
+| Sorting | 26.3 | 60% |
+| Single Threaded | 12.0 | 12% |
+| Memory (all) | 19.8 | 0% |
+
+What it shows:
+
+- Power sits at 57-65 W (near PL2) from Float through Compression, then drops
+  to about 25 W (PL1) from Encryption onward, with PBM-PL1 flagged from about
+  s=22. The first tests of the suite get the high power budget; later ones
+  are held at 25 W.
+- This makes run order matter for the power-hungry tests. Windows ran SSE 4th
+  at about 58 W; Ubuntu ran SSE last (after the budget is spent). That is
+  consistent with the -44.8% SSE gap and the +29.2% Sorting gap in the other
+  direction.
+- It is not a complete explanation: Physics runs 8th on Ubuntu yet scores
+  +17.2%, and Integer ran before SocWatch started (no power for it).
+
 ## SocWatch whole-run power summary
 
-The archived SocWatch CSVs only hold whole-run summaries, with no per-second
-power, so there is no per-test power plot.
+| | Windows (CPU+Memory only) | Ubuntu (CPU+Memory) | Windows (full suite, for reference) |
+|---|---|---|---|
+| Average package power | 22.1 W | 24.5 W | 16.2 W |
+| Capture length | about 104 s | about 95 s | about 411 s |
+| PBM-PL1 samples | 12.9% | 24.5% | 3.0% |
 
-| | Windows | Ubuntu |
-|---|---|---|
-| Average package power | 16.2 W | 24.5 W |
-| Capture length | about 411 s (whole suite) | about 95 s (CPU and Memory) |
-| PBM-PL1 samples | 3.0% | 24.5% |
-
-The power averages are not comparable: the Windows capture also covers the
-low-power 2D, 3D and Disk tests. The PBM-PL1 share is higher on Ubuntu, but with
-no time series it cannot be tied to a specific sub-test.
+The first two columns cover the same suites and are comparable; the full-suite
+column is diluted by the low-power 2D, 3D and Disk tests. The PBM-PL1 share is
+higher on Ubuntu, in line with its power-hungry SSE test running last. Ubuntu
+has no per-second power trace yet (it would need a rerun with SocWatch `-m`).
 
 ## Limits
 
@@ -151,12 +193,19 @@ no time series it cannot be tied to a specific sub-test.
   runs agree within about 0.4%.
 - The PassMark builds are the same major version but not identical
   (Windows 11.1, Linux 11.0.1004), and Windows is a GUI build while Linux is the CLI.
-- Sub-test names match but equivalence of the work done is not audited.
+- Sub-test names match but equivalence of the work done is not audited. The
+  builds differ in at least thread selection (Prime on 14 vs 16 threads) and
+  version, so identical workload code is not confirmed; only PassMark can
+  confirm that.
 - Windows run order is inferred (listing order plus EMON), not recorded.
 - The EMON test windows are approximate and the IPC figures use few seconds per
   test.
-- The Windows capture runs the whole suite and Ubuntu runs CPU and Memory only,
-  so only the CPU-suite seconds are compared.
+- The Windows capture in the best-score run covers the whole suite and Ubuntu
+  CPU and Memory only, so only CPU-suite seconds are compared there. The
+  power section uses the matched CPU+Memory-only Windows run instead.
+- EMON starts about 4 s before SocWatch, so SocWatch missed the Integer test
+  in the CPU+Memory-only run; the SocWatch trace is aligned to EMON by
+  correlation (about ±1 s).
 - Ubuntu's PassMark version is recorded for `20261110_025123` only; other Ubuntu
   runs do not archive it.
 

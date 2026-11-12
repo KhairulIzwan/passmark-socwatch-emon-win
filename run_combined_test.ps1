@@ -25,6 +25,15 @@
 .PARAMETER TestIterations
  Number of repeats per sub-test (PassMark's "Test Iterations" preference).
 
+.PARAMETER Suite
+ Which tests to run: All (default) | CPU | Memory | CPUMemory (CPU, then Memory). Partial suites
+ finish without PassMark's "Submit Baseline" dialog, so completion is detected when PassMark's
+ in-progress dialog disappears.
+
+.PARAMETER MaxDetail
+ Adds SocWatch -m (over-time data for every feature) and keeps the raw .etl files, so a
+ per-interval trace can be exported afterwards with: socwatch -i <collection> -r int
+
 .PARAMETER ConfirmBeforeRun
  If set, asks Y/N before starting the benchmark. Default is fully automatic (no prompts).
 
@@ -62,6 +71,11 @@ param(
     [int]$CmdPreferences   = 40040,    # Edit > Preferences...   (WM_COMMAND id, verified on v10.2 only)
     [int]$CmdRunAll        = 40079,    # Tests > Run All Tests   (verified on v10.2 only)
     [int]$CmdSaveText      = 40083,    # File > Save results as text (verified on v10.2 only)
+    [ValidateSet("All","CPU","Memory","CPUMemory")]
+    [string]$Suite         = "All",    # All = every test; CPU / Memory = Tests > CPU/Memory > All; CPUMemory = CPU then Memory (same coverage as the Linux -r All run)
+    [int]$CmdCpuAll        = 40001,    # Tests > CPU > All      (verified on v11.1 via probe_menu.ps1)
+    [int]$CmdMemoryAll     = 40038,    # Tests > Memory > All   (verified on v11.1 via probe_menu.ps1)
+    [switch]$MaxDetail,                # SocWatch -m (over-time data); keeps the raw .etl so a per-interval trace can be exported later
     [ValidateSet("AsIs","Balanced","HighPerformance","UltimatePerformance","PowerSaver")]
     [string]$PowerPlan = "HighPerformance",  # power plan to use DURING the benchmark; original plan is restored afterward. "AsIs" = don't touch it.
     [switch]$Help                      # show usage (incl. available power plans on this machine) and exit
@@ -75,9 +89,12 @@ Combined PassMark + SocWatch + EMON telemetry capture - FULLY AUTOMATED
 USAGE:
   .\run_combined_test.ps1 [-TestDuration <Short|Medium|Long|VeryLong>] [-TestIterations <n>]
                            [-PowerPlan <AsIs|Balanced|HighPerformance|UltimatePerformance|PowerSaver>]
+                           [-Suite <All|CPU|Memory|CPUMemory>] [-MaxDetail]
                            [-SocWatchSafetyCapSeconds <n>] [-ConfirmBeforeRun] [-Help]
 
 PARAMETERS:
+  -Suite                    All | CPU | Memory | CPUMemory      (default: All)
+  -MaxDetail                SocWatch over-time data (-m); keeps raw .etl for a per-interval trace
   -TestDuration             Short | Medium | Long | VeryLong   (default: Short)
   -TestIterations           Number of repeats per sub-test     (default: 3)
   -PowerPlan                Power plan used during the run - original is always restored after
@@ -435,37 +452,59 @@ Start-Sleep -Milliseconds 500
 Write-Host "  Preferences applied."
 
 # ---------- Step 3: trigger the benchmark run (telemetry starts right after this, once it's truly begun) ----------
-Write-Host "`n[3/7] Triggering 'Run All Tests' (same as clicking 'Run Benchmark')..." -ForegroundColor Yellow
-[Native.Combined]::SetForegroundWindow($hwnd) | Out-Null
-Start-Sleep -Milliseconds 300
-$postOk = [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]$CmdRunAll, [IntPtr]::Zero)  # Tests > Run All Tests
-Write-Host "  [DEBUG] PostMessage(WM_COMMAND, $CmdRunAll) result: $postOk"
-
-$confirmDlg = Wait-ForDialog $pm.Id "^Run all benchmark tests\?$" 5000
-if ($confirmDlg -eq [IntPtr]::Zero) {
-    throw "Confirmation dialog ('Run all benchmark tests?') did not appear - aborting, nothing was started."
+$suiteCmds = switch ($Suite) {
+    "CPU"       { @($CmdCpuAll) }
+    "Memory"    { @($CmdMemoryAll) }
+    "CPUMemory" { @($CmdCpuAll, $CmdMemoryAll) }
+    default     { @($CmdRunAll) }
 }
-Write-Host "  [DEBUG] Confirmation dialog found: $confirmDlg" -ForegroundColor Cyan
 
-$confirmCtrls = Get-ChildControls $confirmDlg
-$yesBtn = ($confirmCtrls | Where-Object { $_.Id -eq 6 })[0].H
-$noBtn  = ($confirmCtrls | Where-Object { $_.Id -eq 7 })[0].H
+function Start-PassMarkSuite($cmdId) {
+    Write-Host "  Triggering PassMark command id $cmdId (suite '$Suite')..."
+    [Native.Combined]::SetForegroundWindow($hwnd) | Out-Null
+    Start-Sleep -Milliseconds 300
+    $postOk = [Native.Combined]::PostMessage($hwnd, 0x0111, [IntPtr]$cmdId, [IntPtr]::Zero)  # WM_COMMAND
+    Write-Host "  [DEBUG] PostMessage(WM_COMMAND, $cmdId) result: $postOk"
 
-$answer = if ($ConfirmBeforeRun) { Read-Host "  PassMark is asking: 'You are about to run all tests, this may take several minutes...' Proceed? (Y/N)" } else { "y" }
-if (-not $ConfirmBeforeRun) { Write-Host "  PassMark confirmation dialog detected - auto-confirming (pass -ConfirmBeforeRun to be asked instead)." }
-if ($answer -notmatch '^(y|yes)$') {
-    Write-Host "  User chose NO - clicking No and stopping the script. No telemetry was started." -ForegroundColor Red
-    [Native.Combined]::PostMessage($noBtn, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null  # PostMessage: non-blocking
-    exit 0
+    # The run-confirmation dialog's title differs per suite ("Run all benchmark tests?" for Run All),
+    # so match it by its Yes (id 6) and No (id 7) buttons instead of by title.
+    $confirmDlg = [IntPtr]::Zero
+    for ($t = 0; $t -lt 50 -and $confirmDlg -eq [IntPtr]::Zero; $t++) {
+        Start-Sleep -Milliseconds 100
+        foreach ($d in (Get-VisibleWindowsForPid $pm.Id | Where-Object { $_.Class -eq "#32770" })) {
+            $ids = (Get-ChildControls $d.H).Id
+            if (($ids -contains 6) -and ($ids -contains 7)) { $confirmDlg = $d.H; break }
+        }
+    }
+    if ($confirmDlg -eq [IntPtr]::Zero) {
+        throw "Run confirmation dialog (Yes/No) did not appear - aborting, nothing was started."
+    }
+    Write-Host "  [DEBUG] Confirmation dialog found: $confirmDlg" -ForegroundColor Cyan
+
+    $confirmCtrls = Get-ChildControls $confirmDlg
+    $yesBtn = ($confirmCtrls | Where-Object { $_.Id -eq 6 })[0].H
+    $noBtn  = ($confirmCtrls | Where-Object { $_.Id -eq 7 })[0].H
+
+    $answer = if ($ConfirmBeforeRun) { Read-Host "  PassMark is asking to run tests. Proceed? (Y/N)" } else { "y" }
+    if (-not $ConfirmBeforeRun) { Write-Host "  PassMark confirmation dialog detected - auto-confirming (pass -ConfirmBeforeRun to be asked instead)." }
+    if ($answer -notmatch '^(y|yes)$') {
+        Write-Host "  User chose NO - clicking No and stopping the script. No telemetry was started." -ForegroundColor Red
+        [Native.Combined]::PostMessage($noBtn, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null  # PostMessage: non-blocking
+        exit 0
+    }
+    Write-Host "  Clicking Yes..." -ForegroundColor Green
+    [Native.Combined]::PostMessage($yesBtn, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null  # PostMessage: non-blocking
+
+    for ($w = 0; $w -lt 50; $w++) {
+        Start-Sleep -Milliseconds 200
+        $stillThere = (Get-VisibleWindowsForPid $pm.Id) | Where-Object { $_.H -eq $confirmDlg }
+        if (-not $stillThere) { break }
+    }
 }
-Write-Host "  Clicking Yes..." -ForegroundColor Green
-[Native.Combined]::PostMessage($yesBtn, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null  # PostMessage: non-blocking
 
-for ($w = 0; $w -lt 50; $w++) {
-    Start-Sleep -Milliseconds 200
-    $stillThere = (Get-VisibleWindowsForPid $pm.Id) | Where-Object { $_.Title -eq "Run all benchmark tests?" }
-    if (-not $stillThere) { break }
-}
+Write-Host "`n[3/7] Triggering suite '$Suite' (same as the Tests menu)..." -ForegroundColor Yellow
+Start-PassMarkSuite $suiteCmds[0]
+$suiteIndex = 0
 Write-Host "  Benchmark started."
 
 # ---------- Step 4: start telemetry NOW, right as the real workload begins - no fixed duration ----------
@@ -491,6 +530,7 @@ $socFeatures = @("cpu-wakeup","sys-memory","cpu-freq","uncore-freq","cpu-ipc","c
 $socArgs = @()
 foreach ($feat in $socFeatures) { $socArgs += "-f"; $socArgs += $feat }
 $socArgs += @("-o",$socDir,"-t",$SocWatchSafetyCapSeconds)
+if ($MaxDetail) { $socArgs += "-m" }
 $socProc = Start-Process -FilePath "C:\Program Files\SocWatch\socwatch.exe" -ArgumentList $socArgs -WorkingDirectory "C:\Program Files\SocWatch" -PassThru -WindowStyle Minimized
 
 Start-Sleep -Seconds 2
@@ -508,6 +548,8 @@ Write-Host "  Monitoring CPU usage + active sub-test to auto-detect completion..
 # containing a "Submit Baseline to Passmark" button, id=12104) is PassMark's own definitive signal
 # that ALL sub-tests (CPU/2D/3D/Memory/Disk) have truly finished - poll for that instead.
 $prevCpu = -1
+$sawBusy = $false
+$idleTicks = 0
 $tickSeconds = 1        # fast 1s tick: dismisses stray popups (e.g. OpenCL) almost immediately
 $logEveryTicks = 10     # keep log output at the original ~10s cadence
 $maxTicks = [math]::Max([math]::Ceiling($SocWatchSafetyCapSeconds / 10) + 24, 180) * 10  # same total safety-cap duration, now in 1s ticks
@@ -525,9 +567,26 @@ for ($i = 0; $i -lt $maxTicks; $i++) {
     $wins = Get-VisibleWindowsForPid $pm.Id
 
     $blankDlgs = $wins | Where-Object { $_.Class -eq "#32770" -and $_.Title -eq "" }
+    $busyDlg = $false
     foreach ($bd in $blankDlgs) {
         $bdCtrls = Get-ChildControls $bd.H
-        if ($bdCtrls | Where-Object { $_.Id -eq 12104 }) { $reallyDone = $true; break }
+        if ($bdCtrls | Where-Object { $_.Id -eq 12104 }) { if ($Suite -eq "All") { $reallyDone = $true; break } }
+        elseif ($bdCtrls | Where-Object { $_.Id -eq 12001 }) { $busyDlg = $true }   # in-progress dialog (Static 12000 + Button 12001)
+    }
+
+    # Partial suites show no completion dialog: a phase is done once the in-progress dialog has
+    # been seen and then stays gone for 5 consecutive ticks (debounce across sub-test changes).
+    if ($Suite -ne "All") {
+        if ($busyDlg) { $sawBusy = $true; $idleTicks = 0 }
+        elseif ($sawBusy) { $idleTicks++ }
+        if ($sawBusy -and $idleTicks -ge 5) {
+            $suiteIndex++
+            if ($suiteIndex -lt $suiteCmds.Count) {
+                Write-Host "  Phase $suiteIndex of $($suiteCmds.Count) finished - starting next phase." -ForegroundColor Green
+                Start-PassMarkSuite $suiteCmds[$suiteIndex]
+                $sawBusy = $false; $idleTicks = 0
+            } else { $reallyDone = $true }
+        }
     }
 
     if ((($i + 1) % $logEveryTicks) -eq 0 -or $reallyDone) {
@@ -704,7 +763,9 @@ if ($finalHit) {
 # failed/incomplete collection can still be diagnosed from the raw trace.
 $socCsvOk = (Test-Path (Join-Path $resultsDir "socwatch.csv")) -and (Test-Path (Join-Path $resultsDir "socwatch_WakeupAnalysis.csv"))
 $socEtlFiles = Get-ChildItem (Join-Path $resultsDir "socwatch_*Session.etl") -ErrorAction SilentlyContinue
-if ($socEtlFiles) {
+if ($socEtlFiles -and $MaxDetail) {
+    Write-Host "  -MaxDetail: keeping raw SocWatch .etl files. Export a per-interval trace with: socwatch -i <this folder>\socwatch -r int -o <out prefix>" -ForegroundColor Cyan
+} elseif ($socEtlFiles) {
     if ($socCsvOk) {
         $freedBytes = ($socEtlFiles | Measure-Object Length -Sum).Sum
         $socEtlFiles | Remove-Item -Force
