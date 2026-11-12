@@ -77,11 +77,58 @@ instead of 16. The OS and EMON still report all 16 cores online.
 - Single Threaded, Encryption and Compression are within 5% of each other.
 - **Prime Numbers** is 26% lower on Ubuntu. It runs on 14 of 16 cores there
   (see topology above), but that is only 12.5% fewer threads, so thread count
-  alone does not explain a 26% gap. Cause not established.
+  alone does not explain a 26% gap. EMON (below) shows the clocks are not
+  lower and all 16 cores are active, but P-core IPC is about 27% lower. Why
+  is not established.
 - **SSE** (-44.8%) and **Sorting** (+29.2%) differ most and swap positions in
   the run order, so run order may contribute (for example, through where each
   test falls relative to power-limit behavior). This is a hypothesis only.
   Neither is a proven cause.
+
+## EMON per-second view (CPU suite only)
+
+![EMON per-second view](windows_vs_ubuntu_best_score_emon.png)
+
+Script: [plot_best_score_emon.py](plot_best_score_emon.py). Instructions retired
+(top) and mean frequency (bottom) are split by core type: P = cores 0-3,
+E = 4-11, LPE = 12-15 (inferred from the IPC pattern). The shaded test windows
+are approximate, read from activity transitions, not recorded by PassMark.
+SocWatch only provides whole-run summaries in these captures, so it is used for
+the power-limit counts in the limits below, not for the per-second plot.
+
+Busy seconds only (P-cores at 3.5 GHz or higher, start-of-test spike and
+ramp/tail seconds removed; 1 to 5 seconds per test, so indicative):
+
+| Test | Score delta | Mean GHz, all cores (Win / Ubu) | P-core IPC (Win / Ubu) | IPC delta |
+|---|---:|---|---|---:|
+| Integer | +4.5% | 3.78 / 3.80 | 1.99 / 2.10 | +5.5% |
+| Floating Point | -3.5% | 3.79 / 3.80 | 4.02 / 3.70 | -8.0% |
+| Prime Numbers | -26.0% | 3.79 / 3.79 | 5.44 / 3.98 | -26.8% |
+| SSE | -44.8% | 3.79 / 3.70 | 5.44 / 3.53 | -35.1% |
+| Compression | -5.0% | 3.79 / 3.75 | 5.28 / 2.99 | -43.4% |
+| Encryption | -1.7% | 3.79 / 3.80 | 1.81 / 2.32 | +28.2% |
+| Physics | +17.2% | 3.79 / 3.80 | 2.15 / 2.47 | +14.9% |
+| Sorting | +29.2% | 3.79 / 3.18 (all cores) | 1.81 / 4.01 | +121.5% |
+
+What it shows:
+
+- **Clocks are not the gap.** In busy seconds both OSes hold the P-cores at
+  about 3.8 GHz, including during Prime and SSE.
+- **Prime Numbers:** all 16 cores are active on Ubuntu (so the 14-thread
+  setting is not visible as idle cores), but P-core IPC is 27% lower, in line
+  with the 26% score gap. IPC also tracks the score direction for Integer,
+  Floating Point, SSE and Physics.
+- **IPC does not track the score** for Compression, Encryption and Sorting, so
+  window boundaries or a different instruction mix are likely involved.
+  Treat IPC as a clue, not an explanation.
+- **Run structure differs.** Windows shows about 1 s idle gaps between tests;
+  Ubuntu runs them back to back, with a roughly 400 B instructions/s spike in
+  the first second of each test (consistent with a warm-up spin-wait; not
+  confirmed).
+- **Ubuntu Sorting:** the LPE cores run at about 1.9 GHz while P and E stay at
+  3.8 GHz. Sorting still scores +29%.
+- **Ubuntu SSE** ends with a long tail where E and LPE cores finish and clock
+  down before the P-cores, so the last seconds use few cores.
 
 ## Limits
 
@@ -91,6 +138,10 @@ instead of 16. The OS and EMON still report all 16 cores online.
   (Windows 11.1, Linux 11.0.1004), and Windows is a GUI build while Linux is the CLI.
 - Sub-test names match but equivalence of the work done is not audited.
 - Windows run order is inferred (listing order plus EMON), not recorded.
+- The EMON test windows are approximate and the IPC figures use few seconds per
+  test.
+- The Windows capture runs the whole suite and Ubuntu runs CPU and Memory only,
+  so only the CPU-suite seconds are compared.
 - Ubuntu's PassMark version is recorded for `20261110_025123` only; other Ubuntu
   runs do not archive it.
 
