@@ -137,6 +137,20 @@ Compression, Single Threaded, Physics, SSE), then Memory (`-CpuOrder Ubuntu`,
 ("Default order" is the best-score Windows run, CPU > All.) Memory Mark was
 3,737.0 in this run (3,724.6 default).
 
+![Windows run structure](windows_run_structure.png)
+
+Script: [plot_windows_run_structure.py](plot_windows_run_structure.py). Instructions
+retired per second for the two Windows CPU+Memory runs (same core-type split as
+above). The default run is active in 80% of its seconds; the individual-test run
+is active in 52%, with idle gaps of several seconds between tests (the first
+is about 25 s) before the next test is started.
+
+**Which comparison to use:** the back-to-back CPU > All run is the fairer match
+to Ubuntu, which also runs its tests back to back; the Windows gap to Ubuntu is
+-4.8% there. The individual-test run matches Ubuntu's *order* but not its
+*timing*, so it favors Windows and widens the gap to -17%. Treat it as a power
+sensitivity result, not a like-for-like score.
+
 What it shows:
 
 - **Power state moves scores a lot on the same OS.** Windows CPU Mark rose
