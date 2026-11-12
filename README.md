@@ -95,6 +95,11 @@ Common parameters:
   suites start the PassMark menu item (Tests > CPU > All = 40001, Memory > All = 40038) and
   end when its in-progress dialog disappears. Use `CPUMemory` to match the Linux `-r All`
   coverage. Note `PassMark_PerfRes.txt` keeps stale 2D/3D/Disk lines from earlier runs.
+- `-CpuOrder` (combined script only, needs `-Suite CPU` or `CPUMemory`): run the CPU sub-tests one
+  at a time via their own menu items, in a custom order. `Ubuntu` = Integer, Float, Prime, Sorting,
+  Encryption, Compression, Single, Physics, SSE (Linux run order), or a comma list of those names.
+  Each test has its own confirm prompt, so gaps differ from CPU > All and the composite CPU Mark
+  may not be produced.
 - `-MaxDetail` (combined script only): adds SocWatch `-m` and keeps the raw `.etl` files so a
   per-interval trace can be exported afterwards:
   `socwatch.exe -i <Results\run>\socwatch -r int -o <prefix>` (about 220 MB).

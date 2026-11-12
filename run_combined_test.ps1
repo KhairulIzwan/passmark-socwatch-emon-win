@@ -30,6 +30,13 @@
  finish without PassMark's "Submit Baseline" dialog, so completion is detected when PassMark's
  in-progress dialog disappears.
 
+.PARAMETER CpuOrder
+ Runs the CPU sub-tests one at a time (Tests > CPU > <test>) in a custom order instead of CPU > All.
+ "Ubuntu" = Integer,Float,Prime,Sorting,Encryption,Compression,Single,Physics,SSE (the Linux run
+ order); or give a comma list of those names. Requires -Suite CPU or CPUMemory. Each test starts
+ with its own confirm prompt, so gaps between tests differ from a normal CPU > All run, and the
+ composite CPU Mark may not be produced (sub-test scores are still written).
+
 .PARAMETER MaxDetail
  Adds SocWatch -m (over-time data for every feature) and keeps the raw .etl files, so a
  per-interval trace can be exported afterwards with: socwatch -i <collection> -r int
@@ -75,6 +82,7 @@ param(
     [string]$Suite         = "All",    # All = every test; CPU / Memory = Tests > CPU/Memory > All; CPUMemory = CPU then Memory (same coverage as the Linux -r All run)
     [int]$CmdCpuAll        = 40001,    # Tests > CPU > All      (verified on v11.1 via probe_menu.ps1)
     [int]$CmdMemoryAll     = 40038,    # Tests > Memory > All   (verified on v11.1 via probe_menu.ps1)
+    [string]$CpuOrder      = "",       # "Ubuntu" or a comma list (Integer,Float,Prime,Sorting,Encryption,Compression,Single,Physics,SSE): run CPU sub-tests one by one in that order (needs -Suite CPU or CPUMemory)
     [switch]$MaxDetail,                # SocWatch -m (over-time data); keeps the raw .etl so a per-interval trace can be exported later
     [ValidateSet("AsIs","Balanced","HighPerformance","UltimatePerformance","PowerSaver")]
     [string]$PowerPlan = "HighPerformance",  # power plan to use DURING the benchmark; original plan is restored afterward. "AsIs" = don't touch it.
@@ -89,11 +97,12 @@ Combined PassMark + SocWatch + EMON telemetry capture - FULLY AUTOMATED
 USAGE:
   .\run_combined_test.ps1 [-TestDuration <Short|Medium|Long|VeryLong>] [-TestIterations <n>]
                            [-PowerPlan <AsIs|Balanced|HighPerformance|UltimatePerformance|PowerSaver>]
-                           [-Suite <All|CPU|Memory|CPUMemory>] [-MaxDetail]
+                           [-Suite <All|CPU|Memory|CPUMemory>] [-CpuOrder <Ubuntu|list>] [-MaxDetail]
                            [-SocWatchSafetyCapSeconds <n>] [-ConfirmBeforeRun] [-Help]
 
 PARAMETERS:
   -Suite                    All | CPU | Memory | CPUMemory      (default: All)
+  -CpuOrder                 Run CPU sub-tests individually in a custom order ("Ubuntu" preset)
   -MaxDetail                SocWatch over-time data (-m); keeps raw .etl for a per-interval trace
   -TestDuration             Short | Medium | Long | VeryLong   (default: Short)
   -TestIterations           Number of repeats per sub-test     (default: 3)
@@ -452,10 +461,22 @@ Start-Sleep -Milliseconds 500
 Write-Host "  Preferences applied."
 
 # ---------- Step 3: trigger the benchmark run (telemetry starts right after this, once it's truly begun) ----------
+$cpuCmds = @($CmdCpuAll)
+if ($CpuOrder) {
+    if ($Suite -notin @("CPU","CPUMemory")) { throw "-CpuOrder requires -Suite CPU or CPUMemory." }
+    $cpuIds = @{ Integer = 40300; Float = 40301; Prime = 40547; SSE = 40303; Compression = 40304
+                 Encryption = 40305; Physics = 50110; Sorting = 40307; Single = 40662 }   # verified on v11.1 via probe_menu.ps1
+    $names = if ($CpuOrder -eq "Ubuntu") { "Integer","Float","Prime","Sorting","Encryption","Compression","Single","Physics","SSE" }
+             else { $CpuOrder -split '\s*,\s*' | Where-Object { $_ } }
+    $bad = $names | Where-Object { -not $cpuIds.ContainsKey($_) }
+    if ($bad) { throw "Unknown -CpuOrder test name(s): $($bad -join ', '). Valid: $($cpuIds.Keys -join ', ')" }
+    $cpuCmds = @($names | ForEach-Object { $cpuIds[$_] })
+    Write-Host "  CPU sub-tests will run individually in this order: $($names -join ' > ')" -ForegroundColor Cyan
+}
 $suiteCmds = switch ($Suite) {
-    "CPU"       { @($CmdCpuAll) }
+    "CPU"       { $cpuCmds }
     "Memory"    { @($CmdMemoryAll) }
-    "CPUMemory" { @($CmdCpuAll, $CmdMemoryAll) }
+    "CPUMemory" { $cpuCmds + @($CmdMemoryAll) }
     default     { @($CmdRunAll) }
 }
 
@@ -550,6 +571,7 @@ Write-Host "  Monitoring CPU usage + active sub-test to auto-detect completion..
 $prevCpu = -1
 $sawBusy = $false
 $idleTicks = 0
+$phaseTicks = 0
 $tickSeconds = 1        # fast 1s tick: dismisses stray popups (e.g. OpenCL) almost immediately
 $logEveryTicks = 10     # keep log output at the original ~10s cadence
 $maxTicks = [math]::Max([math]::Ceiling($SocWatchSafetyCapSeconds / 10) + 24, 180) * 10  # same total safety-cap duration, now in 1s ticks
@@ -577,14 +599,18 @@ for ($i = 0; $i -lt $maxTicks; $i++) {
     # Partial suites show no completion dialog: a phase is done once the in-progress dialog has
     # been seen and then stays gone for 5 consecutive ticks (debounce across sub-test changes).
     if ($Suite -ne "All") {
+        $phaseTicks++
         if ($busyDlg) { $sawBusy = $true; $idleTicks = 0 }
         elseif ($sawBusy) { $idleTicks++ }
-        if ($sawBusy -and $idleTicks -ge 5) {
+        # a very short individual test might finish before the in-progress dialog is ever seen
+        $missedBusy = (-not $sawBusy) -and $phaseTicks -ge 25
+        if ($missedBusy) { Write-Host "  [WARN] In-progress dialog not seen for phase $($suiteIndex+1); assuming it finished." -ForegroundColor Yellow }
+        if ($missedBusy -or ($sawBusy -and $idleTicks -ge 5)) {
             $suiteIndex++
             if ($suiteIndex -lt $suiteCmds.Count) {
                 Write-Host "  Phase $suiteIndex of $($suiteCmds.Count) finished - starting next phase." -ForegroundColor Green
                 Start-PassMarkSuite $suiteCmds[$suiteIndex]
-                $sawBusy = $false; $idleTicks = 0
+                $sawBusy = $false; $idleTicks = 0; $phaseTicks = 0
             } else { $reallyDone = $true }
         }
     }
