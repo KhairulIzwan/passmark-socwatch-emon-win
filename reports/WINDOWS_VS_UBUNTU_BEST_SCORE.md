@@ -57,33 +57,32 @@ runs last).
 ## Memory sub-tests
 
 Same two runs as the best score above. Ubuntu's results file uses short keys;
-the mapping to PassMark's names is inferred from the values (`ME_READ_S` =
-Read Cached, `ME_READ_L` = Read Uncached).
+the mapping to PassMark's names is inferred from the key names and value
+magnitudes (for example `ME_LARGE` is about 55,000, matching Available RAM in
+MB on this 64 GB system).
 
 | Test | Unit | Windows | Ubuntu | Ubuntu vs. Windows |
 |---|---|---:|---:|---:|
-| Read - Cached | MB/s | 35,943 | 34,742 | -3.3% |
-| Read - Uncached | MB/s | 20,046 | 21,713 | +8.3% |
+| Database Operations (`ME_ALLOC_S`) | KOps/s | 12,703 | 9,619 | -24.3% |
+| Read - Cached (`ME_READ_S`) | MB/s | 35,943 | 34,742 | -3.3% |
+| Read - Uncached (`ME_READ_L`) | MB/s | 20,046 | 21,713 | +8.3% |
 | Write | MB/s | 16,179 | 16,306 | +0.8% |
+| Available RAM (`ME_LARGE`) | MB | 54,225 | 54,907 | +1.3% |
 | Latency | ns (lower is better) | 41.2 | 41.0 | 0.5% better |
 | Threaded | MB/s | 89,707 | 90,968 | +1.4% |
 | **Memory Mark** | | **3,724.6** | **3,759.0** | **+0.9%** |
 
-Memory is within about 3% on four of five tests; only Read - Uncached differs
-more (+8.3%).
+Six of seven tests are within about 3% (Read - Uncached +8.3%). Database
+Operations is the outlier at -24%, yet the Memory Mark is within 1%, so it
+evidently carries little weight in the composite (not verified against
+PassMark's formula).
 
-**Order:** the five compared tests run in the same relative order on both OSes:
-Read - Cached, Read - Uncached, Write, Latency, Threaded. Ubuntu's results file
-(whose CPU order matches its console log) also runs Available RAM (`ME_ALLOC_S`)
-first and a large-block test (`ME_LARGE`) between Write and Latency. Windows' order is
-its listing order and the Windows file has no entries for those two, so
-the Windows order is inferred, not recorded. Unlike the CPU suite, no
-tests swap positions, so run order is unlikely to explain any Memory difference.
-Ubuntu also reports Available RAM and large-block values
-(`ME_ALLOC_S`, `ME_LARGE`) that this Windows results file does not list, so
-they are not compared. The Memory Mark is a composite of the sub-tests, so these
-differences stay small in the total.
-
+**Order:** all seven tests run in the same order on both OSes: Database
+Operations, Read - Cached, Read - Uncached, Write, Available RAM, Latency,
+Threaded. Ubuntu's order is from its results file (its CPU order matches its
+console log); Windows' is the results-file listing order, so it is inferred,
+not recorded. No test swaps position, unlike the CPU suite, so run order is
+unlikely to explain the Memory differences.
 ## SKU core topology
 
 Intel Core Ultra 7 366H (Panther Lake): 16 cores / 16 threads, no Hyper-Threading
@@ -111,10 +110,52 @@ instead of 16. The OS and EMON still report all 16 cores online.
   lower and all 16 cores are active, but P-core IPC is about 27% lower. Why
   is not established.
 - **SSE** (-44.8%) and **Sorting** (+29.2%) differ most and swap positions in
-  the run order, so run order may contribute (for example, through where each
-  test falls relative to the PL2 = 65 W / PL1 = 25 W power-limit behavior).
-  This is a hypothesis only; Ubuntu has no per-second power data to test it.
+  the run order. Rerunning Windows in Ubuntu's order (next section) showed that
+  order and power state explain Sorting, but not SSE.
 
+## Windows in Ubuntu's CPU order
+
+To test the run-order hypothesis, Windows was rerun with each CPU sub-test run
+individually in Ubuntu's order (Integer, Float, Prime, Sorting, Encryption,
+Compression, Single Threaded, Physics, SSE), then Memory (`-CpuOrder Ubuntu`,
+1 iteration, Short, `UltimatePerformance`). Archived in
+[`cpu_memory_only/`](cpu_memory_only/CoreUltra7_366H/20261111_193915/).
+
+| Test | Windows, default order | Windows, Ubuntu order | Ubuntu | Ubuntu vs. Windows (Ubuntu order) |
+|---|---:|---:|---:|---:|
+| Integer Math | 86,973 | 87,353 | 90,872 | +4.0% |
+| Floating Point | 112,869 | 114,136 | 108,925 | -4.6% |
+| Prime Numbers | 366.1 | 372.6 | 271 | -27.3% |
+| Sorting | 36,606 | 49,565 | 47,310 | -4.5% |
+| Encryption | 25,358 | 30,441 | 24,925 | -18.1% |
+| Compression | 291,922 | 401,127 | 277,356 | -30.9% |
+| Single Threaded | 4,466 | 4,451 | 4,456 | +0.1% |
+| Physics | 2,791 | 3,308 | 3,271 | -1.1% |
+| SSE (matrix) | 32,024 | 31,965 | 17,666 | -44.7% |
+| **CPU Mark** | **33,864** | **38,839** | **32,253** | **-17.0%** |
+
+("Default order" is the best-score Windows run, CPU > All.) Memory Mark was
+3,737.0 in this run (3,724.6 default).
+
+What it shows:
+
+- **Power state moves scores a lot on the same OS.** Windows CPU Mark rose
+  15% just from running tests one at a time. Sorting (+35%), Compression (+37%),
+  Encryption (+20%) and Physics (+19%) gained most; these are the tests that sat
+  in the 25 W PL1 plateau in the earlier CPU > All power trace (22-74% of their
+  samples flagged PBM-PL1). Here PBM-PL1 was flagged in only 0.7% of samples and
+  average package power was 17.1 W over about 164 s (vs. 22.1 W over about 104 s),
+  because the gaps between tests let the power budget recover.
+- **Sorting and Physics now match Ubuntu** (-4.5%, -1.1%), so their earlier
+  Ubuntu advantage (+29%, +17%) was mostly Windows' power-limited position.
+- **Not explained:** SSE (-44.7%) is unchanged even though Windows ran it last
+  (Ubuntu's position), and Prime (-27%) and Integer/Float are unaffected too.
+  Compression (-31%) and Encryption (-18%) are now clearly below Windows, but
+  Ubuntu ran them mid-suite, where it was likely power-limited (Ubuntu PBM-PL1
+  24.5%); this is unproven without a per-second Ubuntu power trace.
+- **The CPU Mark of this run is not comparable** to either OS's CPU > All
+  score, because of the gaps between tests. It is a sensitivity result, not a
+  new best score.
 ## EMON per-second view (CPU suite only)
 
 ![EMON per-second view](windows_vs_ubuntu_best_score_emon.png)
@@ -160,9 +201,9 @@ What it shows:
 - **Ubuntu SSE** ends with a long tail where E and LPE cores finish and clock
   down before the P-cores, so the last seconds use few cores.
 
-## SocWatch whole-run power summary (same suites)
+## SocWatch whole-run power summary
 
-Windows was rerun on CPU and Memory only (1 iteration, Short,
+Windows was rerun on CPU and Memory only with CPU > All (1 iteration, Short,
 `UltimatePerformance`; CPU Mark 33,693.5, Memory Mark 3,730.0) so it matches
 the Ubuntu coverage. Archived in
 [`cpu_memory_only/`](cpu_memory_only/CoreUltra7_366H/20261111_191425/). Its
@@ -170,13 +211,13 @@ the Ubuntu coverage. Archived in
 from earlier runs, not measured. Configured limits are the same on both OSes:
 PL1 = 25 W, PL2 = 65 W, Tau = 28 s.
 
-| | Windows (CPU+Memory only) | Ubuntu (CPU+Memory) | Windows (full suite, for reference) |
-|---|---|---|---|
-| Average package power | 22.1 W | 24.5 W | 16.2 W |
-| Capture length | about 104 s | about 95 s | about 411 s |
-| PBM-PL1 samples | 12.9% | 24.5% | 3.0% |
+| | Windows CPU+Memory (CPU > All) | Ubuntu (CPU+Memory) | Windows, Ubuntu order (individual tests) | Windows full suite (reference) |
+|---|---|---|---|---|
+| Average package power | 22.1 W | 24.5 W | 17.1 W | 16.2 W |
+| Capture length | about 104 s | about 95 s | about 164 s | about 411 s |
+| PBM-PL1 samples | 12.9% | 24.5% | 0.7% | 3.0% |
 
-The first two columns cover the same suites and are comparable; the full-suite
+The first two columns cover the same suites back to back and are comparable; the individual-test run has idle gaps, and the full-suite
 column is diluted by the low-power 2D, 3D and Disk tests. The PBM-PL1 share is
 higher on Ubuntu. Capture lengths are close. Ubuntu has no per-second power
 trace, so power cannot be tied to individual sub-tests.
