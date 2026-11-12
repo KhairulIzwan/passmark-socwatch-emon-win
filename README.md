@@ -178,6 +178,9 @@ test-bed config, per-run
 plots, cross-run comparison, and correlation findings. Raw per-run telemetry (`Results/`) is
 git-ignored as usual; this report + its plots are committed since they're the shareable output.
 
+[`reports/WINDOWS_VS_UBUNTU_BEST_SCORE.md`](reports/WINDOWS_VS_UBUNTU_BEST_SCORE.md) is a short
+best-score comparison (CPU/Memory Mark and CPU sub-tests) of Windows vs. Ubuntu on the same SKU.
+
 [`reports/CASE_STUDY_WINDOWS_VS_LINUX.md`](reports/CASE_STUDY_WINDOWS_VS_LINUX.md) is an
 exploratory cross-OS comparison of this repo's results against the sibling
 [`passmark-socwatch-emon-linux`](https://github.com/KhairulIzwan/passmark-socwatch-emon-linux)
