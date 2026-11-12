@@ -1,4 +1,4 @@
-﻿# Windows vs. Ubuntu: Best PassMark Score (Core Ultra 7 366H)
+# Windows vs. Ubuntu: Best PassMark Score (Core Ultra 7 366H)
 
 Short comparison of the **best PassMark score each OS reached** on this SKU
 (Intel Core Ultra 7 366H, Panther Lake, same board/BIOS/memory). Scores only,
@@ -81,12 +81,9 @@ instead of 16. The OS and EMON still report all 16 cores online.
   lower and all 16 cores are active, but P-core IPC is about 27% lower. Why
   is not established.
 - **SSE** (-44.8%) and **Sorting** (+29.2%) differ most and swap positions in
-  the run order. The power trace below shows why order matters here: both OSes
-  have PL2 = 65 W for a limited time, then PL1 = 25 W. Windows ran SSE (4th)
-  inside the 65 W period and Sorting (8th) after it; Ubuntu ran Sorting (4th)
-  inside it and SSE (9th, last) after it. This matches the direction of both
-  deltas, but Ubuntu has no per-second power trace to confirm it, so it stays a
-  hypothesis.
+  the run order, so run order may contribute (for example, through where each
+  test falls relative to the PL2 = 65 W / PL1 = 25 W power-limit behavior).
+  This is a hypothesis only; Ubuntu has no per-second power data to test it.
 
 ## EMON per-second view (CPU suite only)
 
@@ -133,17 +130,17 @@ What it shows:
 - **Ubuntu SSE** ends with a long tail where E and LPE cores finish and clock
   down before the P-cores, so the last seconds use few cores.
 
-  ## SocWatch whole-run power summary (same suites)
+## SocWatch whole-run power summary (same suites)
 
-  Windows was rerun on CPU and Memory only (1 iteration, Short,
-  `UltimatePerformance`; CPU Mark 33,693.5, Memory Mark 3,730.0) so it matches
-  the Ubuntu coverage. Archived in
-  [`cpu_memory_only/`](cpu_memory_only/CoreUltra7_366H/20261111_191425/). Its
-  `PassMark_PerfRes.txt` also lists 2D, 3D and Disk values; those are carried over
-  from earlier runs, not measured. Configured limits are the same on both OSes:
-  PL1 = 25 W, PL2 = 65 W, Tau = 28 s.
+Windows was rerun on CPU and Memory only (1 iteration, Short,
+`UltimatePerformance`; CPU Mark 33,693.5, Memory Mark 3,730.0) so it matches
+the Ubuntu coverage. Archived in
+[`cpu_memory_only/`](cpu_memory_only/CoreUltra7_366H/20261111_191425/). Its
+`PassMark_PerfRes.txt` also lists 2D, 3D and Disk values; those are carried over
+from earlier runs, not measured. Configured limits are the same on both OSes:
+PL1 = 25 W, PL2 = 65 W, Tau = 28 s.
 
-  | | Windows (CPU+Memory only) | Ubuntu (CPU+Memory) | Windows (full suite, for reference) | | Ubuntu (CPU+Memory) | Windows (full suite, for reference) |
+| | Windows (CPU+Memory only) | Ubuntu (CPU+Memory) | Windows (full suite, for reference) |
 |---|---|---|---|
 | Average package power | 22.1 W | 24.5 W | 16.2 W |
 | Capture length | about 104 s | about 95 s | about 411 s |
@@ -151,8 +148,8 @@ What it shows:
 
 The first two columns cover the same suites and are comparable; the full-suite
 column is diluted by the low-power 2D, 3D and Disk tests. The PBM-PL1 share is
-higher on Ubuntu, in line with its power-hungry SSE test running last. Ubuntu
-has no per-second power trace yet (it would need a rerun with SocWatch `-m`).
+higher on Ubuntu. Capture lengths are close. Ubuntu has no per-second power
+trace, so power cannot be tied to individual sub-tests.
 
 ## Limits
 
@@ -172,7 +169,7 @@ has no per-second power trace yet (it would need a rerun with SocWatch `-m`).
   power section uses the matched CPU+Memory-only Windows run instead.
 - EMON starts about 4 s before SocWatch, so SocWatch missed the Integer test
   in the CPU+Memory-only run; the SocWatch trace is aligned to EMON by
-  correlation (about Â±1 s).
+  correlation (within about 1 s).
 - Ubuntu's PassMark version is recorded for `20261110_025123` only; other Ubuntu
   runs do not archive it.
 
