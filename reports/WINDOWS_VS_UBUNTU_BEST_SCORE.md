@@ -73,8 +73,7 @@ Memory is within about 3% on four of five tests; only Read - Uncached differs
 more (+8.3%). Ubuntu also reports Available RAM and large-block values
 (`ME_ALLOC_S`, `ME_LARGE`) that this Windows results file does not list, so
 they are not compared. The Memory Mark is a composite of the sub-tests, so these
-differences stay small in the total. Memory phase power and PBM-PL1 are in the
-power summary below.
+differences stay small in the total.
 
 ## SKU core topology
 
