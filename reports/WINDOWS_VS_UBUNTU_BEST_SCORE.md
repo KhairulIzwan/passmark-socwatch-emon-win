@@ -54,6 +54,28 @@ runs last).
 | Single Threaded | 9 | 7 | 4,466 | 4,456 | -0.2% |
 | **CPU Mark** | | | **33,864** | **32,253** | **-4.76%** |
 
+## Memory sub-tests
+
+Same two runs as the best score above. Ubuntu's results file uses short keys;
+the mapping to PassMark's names is inferred from the values (`ME_READ_S` =
+Read Cached, `ME_READ_L` = Read Uncached).
+
+| Test | Unit | Windows | Ubuntu | Ubuntu vs. Windows |
+|---|---|---:|---:|---:|
+| Read - Cached | MB/s | 35,943 | 34,742 | -3.3% |
+| Read - Uncached | MB/s | 20,046 | 21,713 | +8.3% |
+| Write | MB/s | 16,179 | 16,306 | +0.8% |
+| Latency | ns (lower is better) | 41.2 | 41.0 | 0.5% better |
+| Threaded | MB/s | 89,707 | 90,968 | +1.4% |
+| **Memory Mark** | | **3,724.6** | **3,759.0** | **+0.9%** |
+
+Memory is within about 3% on four of five tests; only Read - Uncached differs
+more (+8.3%). Ubuntu also reports Available RAM and large-block values
+(`ME_ALLOC_S`, `ME_LARGE`) that this Windows results file does not list, so
+they are not compared. The Memory Mark is a composite of the sub-tests, so these
+differences stay small in the total. Memory phase power and PBM-PL1 are in the
+power summary below.
+
 ## SKU core topology
 
 Intel Core Ultra 7 366H (Panther Lake): 16 cores / 16 threads, no Hyper-Threading
