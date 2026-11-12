@@ -23,6 +23,7 @@ core/sample ratios and exclude zero-reference samples.
 | OS | Windows 11 Enterprise LTSC, Build 26100 (64-bit) |
 | Tools (2026-11-03 runs) | PassMark PerformanceTest **10.2**, EMON V11.61, SoC Watch v2026.2.0 |
 | Tools (2026-11-10 runs) | PassMark PerformanceTest **11.1**, EMON V11.61, SoC Watch v2026.6.0 |
+| Tools (2026-11-11 runs) | PassMark PerformanceTest **11.1**, EMON V11.61, SoC Watch v2026.6.0 (-m, raw .etl kept) |
 
 ## Test setup
 
@@ -64,6 +65,23 @@ comparison point is needed.
 `-TestDuration Short -TestIterations 3` settings) - its scores/averages are
 still valid (PassMark composite marks are throughput rates, not duration-scaled),
 but the sample counts aren't directly comparable across rows.
+
+### CPU + Memory-only runs (2026-11-11)
+
+Archived under [`../../cpu_memory_only/CoreUltra7_366H/`](../../cpu_memory_only/CoreUltra7_366H/)
+(not part of the cross-run analysis above). Same PassMark 11.1, `UltimatePerformance`,
+1 iteration. Only CPU and Memory were run, so their PassMark Rating and the 2D/3D/Disk
+lines in `PassMark_PerfRes.txt` are carried over from earlier runs and are not shown.
+
+| Run | CPU tests | CPU Mark | Memory Mark | Avg pkg power | Capture | PBM-PL1 samples |
+|---|---|---|---|---|---|---|
+| 20261111_191425 | CPU > All, then Memory | 33694 | 3730 | 22.1 W | about 104 s | 12.9% |
+| 20261111_193915 | Individually in Ubuntu's order (`-CpuOrder Ubuntu`), then Memory | 38839* | 3737 | 17.1 W | about 164 s | 0.7% |
+
+\* Not comparable to CPU > All scores: the idle gaps between individually started
+tests let the power budget recover. See
+[WINDOWS_VS_UBUNTU_BEST_SCORE.md](../../WINDOWS_VS_UBUNTU_BEST_SCORE.md) for the
+Windows vs. Ubuntu comparison and sub-test scores.
 
 ## Key findings
 
