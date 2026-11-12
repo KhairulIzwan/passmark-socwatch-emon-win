@@ -1,4 +1,4 @@
-# Windows vs. Ubuntu: Best PassMark Score (Core Ultra 7 366H)
+﻿# Windows vs. Ubuntu: Best PassMark Score (Core Ultra 7 366H)
 
 Short comparison of the **best PassMark score each OS reached** on this SKU
 (Intel Core Ultra 7 366H, Panther Lake, same board/BIOS/memory). Scores only,
@@ -133,50 +133,17 @@ What it shows:
 - **Ubuntu SSE** ends with a long tail where E and LPE cores finish and clock
   down before the P-cores, so the last seconds use few cores.
 
-## Power per sub-test (Windows CPU+Memory-only run)
+  ## SocWatch whole-run power summary (same suites)
 
-![Windows CPU+Memory power](windows_cpu_memory_power.png)
+  Windows was rerun on CPU and Memory only (1 iteration, Short,
+  `UltimatePerformance`; CPU Mark 33,693.5, Memory Mark 3,730.0) so it matches
+  the Ubuntu coverage. Archived in
+  [`cpu_memory_only/`](cpu_memory_only/CoreUltra7_366H/20261111_191425/). Its
+  `PassMark_PerfRes.txt` also lists 2D, 3D and Disk values; those are carried over
+  from earlier runs, not measured. Configured limits are the same on both OSes:
+  PL1 = 25 W, PL2 = 65 W, Tau = 28 s.
 
-To get a like-for-like power view, Windows was rerun on the same suites as
-Ubuntu (CPU and Memory, 1 iteration, Short, `UltimatePerformance`) with SocWatch
-`-m` and a per-interval trace exported from the raw `.etl`. Archived in
-[`cpu_memory_only/`](cpu_memory_only/CoreUltra7_366H/20261111_191425/);
-script: [plot_windows_power.py](plot_windows_power.py). This run scored CPU Mark
-33,693.5 and Memory Mark 3,730.0, within 0.5% of the best Windows run above.
-(Its `PassMark_PerfRes.txt` also lists 2D, 3D and Disk values; those are carried
-over from earlier runs, not measured here.)
-
-Configured limits (SocWatch, same on both OSes): **PL1 = 25 W, PL2 = 65 W,
-Tau = 28 s**. Average package power by test window (approximate windows):
-
-| Window | Avg W | PBM-PL1 active |
-|---|---:|---:|
-| Float | 43.7 | 0% |
-| Prime | 45.6 | 0% |
-| SSE | 37.5 | 0% |
-| Compression | 50.8 | 22% |
-| Encryption | 24.9 | 74% |
-| Physics | 23.0 | 61% |
-| Sorting | 26.3 | 60% |
-| Single Threaded | 12.0 | 12% |
-| Memory (all) | 19.8 | 0% |
-
-What it shows:
-
-- Power sits at 57-65 W (near PL2) from Float through Compression, then drops
-  to about 25 W (PL1) from Encryption onward, with PBM-PL1 flagged from about
-  s=22. The first tests of the suite get the high power budget; later ones
-  are held at 25 W.
-- This makes run order matter for the power-hungry tests. Windows ran SSE 4th
-  at about 58 W; Ubuntu ran SSE last (after the budget is spent). That is
-  consistent with the -44.8% SSE gap and the +29.2% Sorting gap in the other
-  direction.
-- It is not a complete explanation: Physics runs 8th on Ubuntu yet scores
-  +17.2%, and Integer ran before SocWatch started (no power for it).
-
-## SocWatch whole-run power summary
-
-| | Windows (CPU+Memory only) | Ubuntu (CPU+Memory) | Windows (full suite, for reference) |
+  | | Windows (CPU+Memory only) | Ubuntu (CPU+Memory) | Windows (full suite, for reference) | | Ubuntu (CPU+Memory) | Windows (full suite, for reference) |
 |---|---|---|---|
 | Average package power | 22.1 W | 24.5 W | 16.2 W |
 | Capture length | about 104 s | about 95 s | about 411 s |
@@ -205,7 +172,7 @@ has no per-second power trace yet (it would need a rerun with SocWatch `-m`).
   power section uses the matched CPU+Memory-only Windows run instead.
 - EMON starts about 4 s before SocWatch, so SocWatch missed the Integer test
   in the CPU+Memory-only run; the SocWatch trace is aligned to EMON by
-  correlation (about ±1 s).
+  correlation (about Â±1 s).
 - Ubuntu's PassMark version is recorded for `20261110_025123` only; other Ubuntu
   runs do not archive it.
 

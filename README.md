@@ -187,7 +187,8 @@ plots, cross-run comparison, and correlation findings. Raw per-run telemetry (`R
 git-ignored as usual; this report + its plots are committed since they're the shareable output.
 
 [`reports/WINDOWS_VS_UBUNTU_BEST_SCORE.md`](reports/WINDOWS_VS_UBUNTU_BEST_SCORE.md) is a short
-best-score comparison (CPU/Memory Mark and CPU sub-tests) of Windows vs. Ubuntu on the same SKU.
+best-score comparison (CPU/Memory Mark and CPU sub-tests) of Windows vs. Ubuntu on the same SKU,
+with an EMON per-second plot and a same-suite power summary (`reports/cpu_memory_only/` holds the CPU+Memory-only Windows run).
 
 [`reports/CASE_STUDY_WINDOWS_VS_LINUX.md`](reports/CASE_STUDY_WINDOWS_VS_LINUX.md) is an
 exploratory cross-OS comparison of this repo's results against the sibling
