@@ -490,12 +490,19 @@ function Start-PassMarkSuite($cmdId) {
     # The run-confirmation dialog's title differs per suite ("Run all benchmark tests?" for Run All),
     # so match it by its Yes (id 6) and No (id 7) buttons instead of by title.
     $confirmDlg = [IntPtr]::Zero
-    for ($t = 0; $t -lt 50 -and $confirmDlg -eq [IntPtr]::Zero; $t++) {
+    $alreadyRunning = $false
+    for ($t = 0; $t -lt 50 -and $confirmDlg -eq [IntPtr]::Zero -and -not $alreadyRunning; $t++) {
         Start-Sleep -Milliseconds 100
         foreach ($d in (Get-VisibleWindowsForPid $pm.Id | Where-Object { $_.Class -eq "#32770" })) {
             $ids = (Get-ChildControls $d.H).Id
             if (($ids -contains 6) -and ($ids -contains 7)) { $confirmDlg = $d.H; break }
+            # individual CPU sub-tests may start with no prompt: the in-progress dialog (12000/12001) appears instead
+            if (($ids -contains 12001) -and ($ids -notcontains 12104)) { $alreadyRunning = $true }
         }
+    }
+    if ($alreadyRunning) {
+        Write-Host "  No confirmation prompt for this test - it started directly." -ForegroundColor Cyan
+        return
     }
     if ($confirmDlg -eq [IntPtr]::Zero) {
         throw "Run confirmation dialog (Yes/No) did not appear - aborting, nothing was started."
